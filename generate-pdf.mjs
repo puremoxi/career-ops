@@ -30,6 +30,7 @@ import { randomUUID } from 'node:crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PDF_PAGE_MARGIN = '0.6in';
+const PLAYWRIGHT_WRAPPER = resolve(__dirname, 'scripts', 'playwright-chromium-wrapper.sh');
 
 // Ensure output directory exists (fresh setup)
 mkdirSync(resolve(__dirname, 'output'), { recursive: true });
@@ -443,7 +444,10 @@ export async function renderHtmlToPdf(html, outputPath, opts = {}) {
   const { writeFile, unlink } = await import('fs/promises');
   await writeFile(tmpHtmlPath, html, 'utf-8');
 
-  const launchBrowser = opts.launchBrowser || ((options) => chromium.launch(options));
+  const launchBrowser = opts.launchBrowser || ((options) => {
+    const wrapperExists = existsSync(PLAYWRIGHT_WRAPPER);
+    return chromium.launch(wrapperExists ? { ...options, executablePath: PLAYWRIGHT_WRAPPER } : options);
+  });
   let browser = null;
   try {
     browser = await launchBrowser({ headless: true });

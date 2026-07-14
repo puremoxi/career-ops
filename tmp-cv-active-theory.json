@@ -1,0 +1,121 @@
+{
+  "lang": "en",
+  "page_format": "letter",
+  "candidate": {
+    "name": "Ryan McDougal",
+    "phone": "+1-773-330-9569",
+    "email": "ryan.mcdougal@gmail.com",
+    "linkedin": {
+      "url": "https://www.linkedin.com/in/mcdougal/",
+      "display": "linkedin.com/in/mcdougal"
+    },
+    "portfolio": {
+      "url": "http://www.ryanmcdougal.com",
+      "display": "ryanmcdougal.com"
+    },
+    "location": "San Jose, CA"
+  },
+  "summary": "Executive creative leader with 20 years building bold visual stories, pitching ambitious work, and translating creative vision into production reality. Led global teams across film, advertising, immersive media, and real-time experiences, with a track record of aligning creative ambition, technical feasibility, timelines, and budget. Strong fit for Active Theory's outward-facing Executive Creative Director role across new business, concept leadership, and high-end digital experience work.",
+  "competencies": [
+    "Executive Creative Direction",
+    "Pitch Leadership",
+    "Interactive Experience Storytelling",
+    "Client-Facing Presentations",
+    "Creative Vision to Launch",
+    "Production Architecture",
+    "Team Mentorship",
+    "Growth-Oriented Creative Leadership"
+  ],
+  "experience": [
+    {
+      "company": "Independent",
+      "role": "Executive Consultant — Creative Production & Technology",
+      "location": "San Jose, CA",
+      "dates": "2025 - Present",
+      "bullets": [
+        "Advise founders, studio heads, and creative leaders on immersive concepts, AI-enabled workflows, creative operations, and scalable production systems.",
+        "Develop mission-aligned concepts, campaigns, and experience narratives across immersive, XR, and emerging-platform work.",
+        "Help leaders balance creative ambition with team structure, workflow design, and practical delivery constraints."
+      ]
+    },
+    {
+      "company": "Light Field Lab",
+      "role": "Creative Director",
+      "location": "San Jose, CA",
+      "dates": "2022 - 2025",
+      "bullets": [
+        "Led creative and technical direction for a holographic display platform, shaping immersive launch experiences, real-time prototypes, and scalable content pipelines.",
+        "Partnered with product, engineering, and marketing to translate complex technology into audience-ready stories and partner-facing narratives.",
+        "Conceptualized and directed experiences combining real-time avatars, XR performance, live capture, and spatial media for enterprise audiences."
+      ]
+    },
+    {
+      "company": "Moving Picture Company",
+      "role": "Head of CG / VFX Supervisor",
+      "location": "Culver City, CA / Montreal, QC",
+      "dates": "2016 - 2022",
+      "bullets": [
+        "Led integrated campaign work across film, digital, social, and experiential platforms for global brands including Apple, Samsung, BMW, and Microsoft.",
+        "Directed concurrent productions with teams ranging from 2 to 300+ artists across multiple countries while balancing quality, schedule, and cost.",
+        "Worked closely with directors, agencies, production, and executive stakeholders to align vision and execution under demanding timelines."
+      ]
+    },
+    {
+      "company": "Blur Studio",
+      "role": "Head of CG / VFX Supervisor",
+      "location": "Culver City, CA",
+      "dates": "2019 - 2021",
+      "bullets": [
+        "Directed 20 CG leaders and global teams of 150+ artists across film, streaming, games, and real-time content.",
+        "Built next-generation CG pipelines and planning tools that improved delivery predictability without sacrificing creative standards.",
+        "Advanced original IP initiatives across $500K-$8M productions, aligning design ambition, production reality, and stakeholder priorities."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "Goosebumps VR Experience",
+      "badge": "Immersive Experience",
+      "tech": "VR/AR, interactive storytelling",
+      "description": "Led early immersive production work, including the VES-nominated Goosebumps VR experience."
+    },
+    {
+      "name": "Samsung — Ostrich",
+      "badge": "Brand Experience",
+      "tech": "Campaign creative, VFX, experiential storytelling",
+      "description": "Contributed to a globally recognized campaign blending strong concepting with production-grade execution."
+    },
+    {
+      "name": "Light Field Lab Real-Time Experiences",
+      "badge": "Emerging Platform",
+      "tech": "XR, real-time, spatial media",
+      "description": "Directed launch experiences that translated frontier technology into memorable audience-facing work."
+    }
+  ],
+  "education": [
+    {
+      "title": "B.S., Marketing, Law, Spanish",
+      "org": "Indiana University Bloomington",
+      "year": ""
+    },
+    {
+      "title": "Animation and Visual Effects",
+      "org": "Vancouver Film School",
+      "year": ""
+    }
+  ],
+  "skills": [
+    {
+      "category": "Creative Leadership",
+      "items": "Executive Creative Direction, Creative Team Leadership, Stakeholder Alignment, Client Partnership, Quality & Taste Leadership"
+    },
+    {
+      "category": "Experience & Campaigns",
+      "items": "Immersive Media, Brand Storytelling, Communications Campaigns, Event & Keynote Visuals, Digital Content"
+    },
+    {
+      "category": "Technology & Delivery",
+      "items": "Real-Time Rendering, Unreal Engine, XR, AI-Assisted Creative Workflows, Global Team Workflows, Production Systems"
+    }
+  ]
+}

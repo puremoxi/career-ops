@@ -1,0 +1,122 @@
+{
+  "lang": "en",
+  "page_format": "letter",
+  "candidate": {
+    "name": "Ryan McDougal",
+    "phone": "+1-773-330-9569",
+    "email": "ryan.mcdougal@gmail.com",
+    "linkedin": {
+      "url": "https://www.linkedin.com/in/mcdougal/",
+      "display": "linkedin.com/in/mcdougal"
+    },
+    "portfolio": {
+      "url": "http://www.ryanmcdougal.com",
+      "display": "ryanmcdougal.com"
+    },
+    "location": "San Jose, CA"
+  },
+  "summary": "Creative Director and production architect with 20 years leading global creative organizations across film, advertising, immersive media, and frontier technology. Most recently led creative direction for Light Field Lab, translating complex platform capabilities into launch narratives, partner-facing stories, and scalable visual systems. Strong match for PolyAI's mandate to build a rebrand, design system, and AI-forward creative function that makes advanced technology legible to enterprise buyers.",
+  "competencies": [
+    "AI-Native Brand Systems",
+    "Creative Function Building",
+    "Platform Storytelling",
+    "Visual Identity Direction",
+    "Distributed Team Leadership",
+    "AI-Assisted Creative Workflows",
+    "Executive-Level Presentations",
+    "Sales & Launch Collateral"
+  ],
+  "experience": [
+    {
+      "company": "Light Field Lab",
+      "role": "Creative Director",
+      "location": "San Jose, CA",
+      "dates": "2022 - 2025",
+      "bullets": [
+        "Partnered with product, engineering, and marketing to translate complex holographic platform capabilities into clear product narratives, partner-facing stories, and audience-ready communications.",
+        "Built repeatable visual communication systems for launch materials, partner demos, and scalable audience-facing assets.",
+        "Evaluated and deployed AI-assisted tools for concepting, style exploration, asset intelligence, and faster iteration while preserving visual consistency.",
+        "Led creative and technical direction for a frontier platform, shaping immersive launch experiences, real-time prototypes, and scalable content pipelines."
+      ]
+    },
+    {
+      "company": "Independent",
+      "role": "Executive Consultant — Creative Production & Technology",
+      "location": "San Jose, CA",
+      "dates": "2025 - Present",
+      "bullets": [
+        "Advise founders and creative leaders on AI-enabled workflows, creative operations, and scalable production systems during periods of formation and growth.",
+        "Design creative operating models, briefing structures, and decision frameworks that reduce friction across creative, production, client, and technical teams.",
+        "Help leaders evaluate generative image, video, automation, and LLM tooling against team needs, culture, and brand integrity."
+      ]
+    },
+    {
+      "company": "Blur Studio",
+      "role": "Head of CG / VFX Supervisor",
+      "location": "Culver City, CA",
+      "dates": "2019 - 2021",
+      "bullets": [
+        "Directed 20 CG leaders and global teams of 150+ artists, building delivery systems that supported Emmy- and Annie Award-winning work.",
+        "Collaborated with engineering on next-generation CG pipelines and real-time production methods that improved scalability and cross-project consistency.",
+        "Aligned directors, artists, production, and technical leadership around clear creative narratives and execution plans."
+      ]
+    },
+    {
+      "company": "Moving Picture Company",
+      "role": "Head of CG / VFX Supervisor",
+      "location": "Culver City, CA / Montreal, QC",
+      "dates": "2016 - 2022",
+      "bullets": [
+        "Led teams of 2 to 300+ artists across the U.S., UK, France, and India while balancing quality, schedule, and cost.",
+        "Directed integrated campaign work across film, digital, social, and experiential platforms for brands including Apple, Samsung, BMW, Audi, and Netflix.",
+        "Redesigned workflows across capture, ingest, rendering, and cross-DCC delivery to accelerate iteration and preserve creative intent."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "Light Field Lab Platform Storytelling",
+      "badge": "Creative Direction",
+      "tech": "Real-time, XR, AI-assisted workflows",
+      "description": "Built launch narratives, partner-facing stories, and scalable visual systems for a holographic display platform."
+    },
+    {
+      "name": "Samsung — Ostrich",
+      "badge": "Award-Winning Campaign",
+      "tech": "Integrated campaign, CG/VFX",
+      "description": "Creative leadership on globally recognized work awarded Cannes Gold Lions, Clio Gold, and D&AD Yellow Pencil."
+    },
+    {
+      "name": "The Power Inside",
+      "badge": "Brand Storytelling",
+      "tech": "Film, digital, campaign creative",
+      "description": "Helped deliver a multi-platform branded story recognized by Cannes, Clio, Webby, and Emmy awards."
+    }
+  ],
+  "education": [
+    {
+      "title": "B.S., Marketing, Law, Spanish",
+      "org": "Indiana University Bloomington",
+      "year": ""
+    },
+    {
+      "title": "Animation and Visual Effects",
+      "org": "Vancouver Film School",
+      "year": ""
+    }
+  ],
+  "skills": [
+    {
+      "category": "Creative Leadership",
+      "items": "Creative Direction, Brand Storytelling Frameworks, Communications Campaigns, Product Storytelling, Launch Narratives"
+    },
+    {
+      "category": "Operations & Teams",
+      "items": "Creative Team Leadership, People Management, Distributed Team Leadership, Creative Operations, Stakeholder Alignment"
+    },
+    {
+      "category": "AI & Creative Tech",
+      "items": "Generative AI, AI-Assisted Concepting, Image & Video Generation, Workflow Automation, ComfyUI, Unreal Engine, Real-Time Rendering"
+    }
+  ]
+}

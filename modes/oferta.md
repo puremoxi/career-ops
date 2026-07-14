@@ -140,6 +140,76 @@ When an advertised salary figure exists, split compensation into:
 - **Expected stable cash:** what is likely recurring and reliable in cash, before tax unless local data supports a net estimate; exclude benefits
 - **Non-cash benefits:** equity, insurance, pension, meals, transport, wellness, learning budget, equipment, or other benefits that are not guaranteed cash
 
+**Source priority policy (required):**
+
+Use compensation sources in this order, stopping when the evidence becomes sufficient:
+
+1. **Posting-level salary** from the JD itself (`Advertised (JD)`) — always the anchor and always wins for the exact opening when present.
+2. **Same-market live job-posting salary data** for similar roles in the same geography.
+3. **Company-specific public comp** for the same employer and a similar role/level, only when clearly attributable.
+4. **Role/location market benchmark** from broader public salary platforms.
+5. **Government baseline / sanity check** (for example, BLS/CareerOneStop or equivalent official wage baselines).
+6. **Static-report fallback** (annual guides, niche surveys, cached vertical reports) only when the higher-priority layers are thin.
+
+Do not skip straight to broad market averages if a stronger, more role-specific source exists.
+
+**Preferred source families by layer:**
+- Same-market live job postings: job-posting salary APIs / live posting aggregates
+- Company-specific public comp: Levels.fyi first for tech tracks, then other clearly employer-tied public comp sources
+- Role/location market benchmark: Glassdoor, Payscale, SalaryExpert, Levels.fyi where title family is credible
+- Government baseline / sanity check: BLS OEWS, CareerOneStop, H-1B/LCA-style employer wage disclosures when relevant
+- Static-report fallback: Robert Half, Dice, Hired, Stack Overflow, niche vertical salary guides
+
+**Base vs total-comp rule (required):**
+
+Never mix base-only numbers and total-comp numbers as if they were directly comparable. Every sourced compensation row must be classified as one of:
+- `base only`
+- `base + bonus`
+- `total comp`
+- `unknown mix`
+
+If the source does not clearly separate base from bonus/equity/allowances, mark it `unknown mix` and lower confidence accordingly.
+
+**Source trust guidance:**
+- `High`: JD-posted ranges, official government wage data, clearly structured employer-tied public bands
+- `Medium`: reputable job-posting aggregators, company-specific public comp, modeled compensation products
+- `Low-Medium`: crowd-sourced salary platforms, broad public review sites
+- `Low`: blog posts, scraper-only outputs without a clear underlying origin, niche articles with unclear methodology
+
+Use scraper/aggregator infrastructure only as a transport layer, never as the named authority in the report. Cite the underlying source (`Glassdoor`, `Levels.fyi`, etc.), not the extraction mechanism.
+
+**Standard comparison table (required when an advertised salary figure exists):**
+
+After the narrative bullets above, include exactly one compact compensation comparison table with these rows, in this order:
+
+```markdown
+| Comparison point | Figure | Comp type | Geography | Source | Confidence |
+| Advertised (JD) | {verbatim figure or "not stated"} | {base only | base + bonus | total comp | unknown mix} | {role market geography} | JD | {High | Medium | Low} |
+| Same-market live postings | {figure or "no reliable public source found"} | {comp type} | {same market} | {source} | {confidence} |
+| Company-specific public comp | {figure or "no reliable public source found"} | {comp type} | {same market or broader} | {source} | {confidence} |
+| Role/location market average | {figure or "no reliable public source found"} | {comp type} | {market} | {source} | {confidence} |
+| Role/location upper quartile | {figure or "no reliable public source found"} | {comp type} | {market} | {source} | {confidence} |
+| Government baseline | {figure or "no reliable public source found"} | base only | {market} | {BLS / CareerOneStop / H-1B-LCA / "—"} | {confidence} |
+| Estimated guaranteed cash | {your conservative estimate or "insufficient evidence"} | base only | {candidate market} | {reasoned estimate from sourced rows} | {confidence} |
+| Estimated target total comp | {your estimate or "insufficient evidence"} | {base + bonus | total comp | unknown mix} | {candidate market} | {reasoned estimate from sourced rows} | {confidence} |
+| Gap vs candidate minimum | {above / below by amount, or "insufficient evidence"} | n/a | n/a | config/profile.yml + rows above | {confidence} |
+| Gap vs candidate target range | {inside / below / above, or "insufficient evidence"} | n/a | n/a | config/profile.yml + rows above | {confidence} |
+```
+
+Rules for this table:
+- The first row is always `Advertised (JD)` and always uses the JD's own salary figure verbatim.
+- The second row, `Same-market live postings`, should be used before broader market averages whenever credible posting-derived data exists.
+- Never replace the JD row with market data and never blend the JD row with researched estimates.
+- Every non-JD row must have an explicit source label, comp-type label, geography label, and confidence label, or `—` / `insufficient evidence`; never imply a sourced number when you only inferred it.
+- If the public data is too thin or contradictory, write `no reliable public source found` or `insufficient evidence` instead of guessing.
+- `Company-specific public comp` is optional evidence, not mandatory. Use it only when the public data is clearly tied to this employer and a similar role/level.
+- Prefer role+location comparisons over generic company-wide averages.
+- `Government baseline` is a sanity check, not the headline benchmark, unless no more role-specific source exists.
+- H-1B/LCA-style employer wage disclosures are useful but narrow; treat them as employer-specific base-wage evidence, not as a full total-comp proxy.
+- Static reports and niche surveys are fallback evidence only; use them when structured live/public sources are thin, and say so plainly.
+- If a row is an inference (`Estimated guaranteed cash`, `Estimated target total comp`, gap rows), label it as your estimate in the narrative and derive it conservatively from the sourced rows above.
+- End the section with one short line: `Comparison quality: {High | Medium | Low}` based on source specificity, freshness, and base-vs-total-comp clarity.
+
 Add a reliability tier:
 
 | Tier | Meaning |
@@ -164,7 +234,7 @@ Include 3-6 concrete questions tailored to the JD and company type, such as:
 - Which components are guaranteed monthly versus discretionary or target-based?
 - If equity or bonus is mentioned, what is the vesting schedule, payout history, and realistic expected value?
 
-When a salary figure exists, include a table with data and cited sources. If there is no data beyond the JD figure, state it instead of inventing. Do not present advertised compensation as real take-home pay unless the source explicitly supports that interpretation.
+When a salary figure exists, include the standard comparison table above with data and cited sources. If there is no data beyond the JD figure, say so explicitly in the table instead of inventing. Do not present advertised compensation as real take-home pay unless the source explicitly supports that interpretation.
 
 The table's **first row is always the JD's own advertised figure, verbatim** — before any researched market data:
 

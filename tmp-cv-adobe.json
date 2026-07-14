@@ -1,0 +1,122 @@
+{
+  "lang": "en",
+  "page_format": "letter",
+  "candidate": {
+    "name": "Ryan McDougal",
+    "phone": "+1-773-330-9569",
+    "email": "ryan.mcdougal@gmail.com",
+    "linkedin": {
+      "url": "https://www.linkedin.com/in/mcdougal/",
+      "display": "linkedin.com/in/mcdougal"
+    },
+    "portfolio": {
+      "url": "http://www.ryanmcdougal.com",
+      "display": "ryanmcdougal.com"
+    },
+    "location": "San Jose, CA"
+  },
+  "summary": "Creative Director with 20 years of experience translating complex technology into stories audiences, partners, and executives can understand and adopt. Led platform storytelling, launch experiences, and scalable visual systems for Light Field Lab's holographic platform, operating across product, marketing, engineering, and executive stakeholders. Strong fit for Adobe Studio's strategic AI remit at the intersection of creativity, product truth, audience insight, and emerging technology.",
+  "competencies": [
+    "AI Product Storytelling",
+    "Creative Strategy",
+    "Audience Insight Translation",
+    "Launch Narratives",
+    "Scalable Visual Systems",
+    "Cross-Functional Product Partnership",
+    "Innovation Storytelling",
+    "Executive Alignment"
+  ],
+  "experience": [
+    {
+      "company": "Light Field Lab",
+      "role": "Creative Director",
+      "location": "San Jose, CA",
+      "dates": "2022 - 2025",
+      "bullets": [
+        "Partnered with product, engineering, and marketing to translate complex platform capabilities into clear product narratives, partner-facing stories, and audience-ready communications.",
+        "Built repeatable visual communication systems for launch materials, partner demos, and scalable audience-facing assets.",
+        "Led concepting, prototyping, and previsualization sprints that validated interaction, choreography, image quality, and audience experience.",
+        "Evaluated AI-assisted creative tools for concepting, style exploration, and accelerated iteration while preserving visual consistency."
+      ]
+    },
+    {
+      "company": "Independent",
+      "role": "Executive Consultant — Creative Production & Technology",
+      "location": "San Jose, CA",
+      "dates": "2025 - Present",
+      "bullets": [
+        "Advise founders and studio heads on communications strategy, AI-enabled workflows, and creative operating models for emerging-platform work.",
+        "Develop mission-aligned concepts, campaigns, and experience narratives across immersive, XR, and frontier-technology initiatives.",
+        "Help leaders select and adapt production systems that support AI-enabled and AI-native creative workflows."
+      ]
+    },
+    {
+      "company": "Moving Picture Company",
+      "role": "Head of CG / VFX Supervisor",
+      "location": "Culver City, CA / Montreal, QC",
+      "dates": "2016 - 2022",
+      "bullets": [
+        "Directed integrated campaign work across film, digital, social, and experiential platforms for Apple, Samsung, BMW, Microsoft, and Netflix.",
+        "Balanced quality, schedule, and cost while leading multidisciplinary teams across the U.S., UK, France, and India.",
+        "Bridged creative supervision, production, artist leadership, and executive stakeholders to clarify priorities and resolve bottlenecks."
+      ]
+    },
+    {
+      "company": "Blur Studio",
+      "role": "Head of CG / VFX Supervisor",
+      "location": "Culver City, CA",
+      "dates": "2019 - 2021",
+      "bullets": [
+        "Led 20 CG leaders and global teams of 150+ artists across film, streaming, games, and real-time content.",
+        "Collaborated with engineering to design next-generation CG pipelines and real-time production methods that improved iteration and scalability.",
+        "Translated creative and technical goals into aligned execution plans and audience-ready content."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "Light Field Lab Launch Experiences",
+      "badge": "AI/Platform Storytelling",
+      "tech": "XR, real-time, holographic content",
+      "description": "Translated abstract platform capabilities into launch narratives, audience experiences, and partner-facing stories."
+    },
+    {
+      "name": "Samsung — Ostrich",
+      "badge": "Campaign Craft",
+      "tech": "Integrated campaign, visual storytelling",
+      "description": "Creative leadership on award-winning work recognized by Cannes, Clio, and D&AD."
+    },
+    {
+      "name": "BMW — Legend",
+      "badge": "Product Narrative",
+      "tech": "CGI, campaign creative",
+      "description": "Helped deliver AICP award-winning product storytelling through high-end CG craft and visual systems."
+    }
+  ],
+  "education": [
+    {
+      "title": "B.S., Marketing, Law, Spanish",
+      "org": "Indiana University Bloomington",
+      "year": ""
+    },
+    {
+      "title": "Animation and Visual Effects",
+      "org": "Vancouver Film School",
+      "year": ""
+    }
+  ],
+  "skills": [
+    {
+      "category": "Strategy & Storytelling",
+      "items": "Creative Strategy, Product Storytelling, Launch Narratives, Brand Storytelling Frameworks, Presentation Narrative"
+    },
+    {
+      "category": "Leadership",
+      "items": "Creative Direction, Cross-Functional Collaboration, Product Engineering Marketing Partnership, Stakeholder Alignment, Quality & Taste Leadership"
+    },
+    {
+      "category": "Creative Technology",
+      "items": "Generative AI, AI-Assisted Concepting, Workflow Automation, Unreal Engine, Real-Time Rendering, XR, Spatial Media"
+    }
+  ]
+}

@@ -63,11 +63,19 @@ async function main() {
   // Lazy browser: the API rung resolves ATS postings with no browser at all, so we
   // only launch Playwright if a URL actually needs the fallback.
   let browser = null, page = null, headed = null;
+  let browserUnavailableReason = null;
   async function ensureBrowser() {
-    if (browser) return;
-    browser = await chromium.launch({ headless: true });
-    page = await newLivenessPage(browser);
-    headed = noFallback ? null : createHeadedPageProvider(chromium);
+    if (browser) return true;
+    if (browserUnavailableReason) return false;
+    try {
+      browser = await chromium.launch({ headless: true });
+      page = await newLivenessPage(browser);
+      headed = noFallback ? null : createHeadedPageProvider(chromium);
+      return true;
+    } catch (err) {
+      browserUnavailableReason = err instanceof Error ? err.message.split('\n')[0] : String(err);
+      return false;
+    }
   }
 
   let active = 0, expired = 0, uncertain = 0, viaApi = 0;
@@ -84,10 +92,15 @@ async function main() {
       viaApi++;
     } else {
       // Rung 2: Playwright — handles non-ATS pages and inconclusive API results.
-      await ensureBrowser();
-      const getHeadedPage = headed ? () => headed.get() : undefined;
-      ({ result, reason } = await checkUrlLivenessWithFallback(page, url, { getHeadedPage }));
-      usedBrowser = true;
+      const browserReady = await ensureBrowser();
+      if (!browserReady) {
+        result = 'uncertain';
+        reason = `browser unavailable: ${browserUnavailableReason}`;
+      } else {
+        const getHeadedPage = headed ? () => headed.get() : undefined;
+        ({ result, reason } = await checkUrlLivenessWithFallback(page, url, { getHeadedPage }));
+        usedBrowser = true;
+      }
     }
 
     const icon = { active: '✅', expired: '❌', uncertain: '⚠️' }[result];

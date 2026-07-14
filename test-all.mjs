@@ -1697,6 +1697,30 @@ if (
   ofertaMode.includes('Variable / conditional cash components') &&
   ofertaMode.includes('Expected stable cash') &&
   ofertaMode.includes('Non-cash benefits') &&
+  ofertaMode.includes('Source priority policy (required)') &&
+  ofertaMode.includes('Same-market live job-posting salary data') &&
+  ofertaMode.includes('Government baseline / sanity check') &&
+  ofertaMode.includes('Static-report fallback') &&
+  ofertaMode.includes('Base vs total-comp rule (required)') &&
+  ofertaMode.includes('base only') &&
+  ofertaMode.includes('base + bonus') &&
+  ofertaMode.includes('total comp') &&
+  ofertaMode.includes('unknown mix') &&
+  ofertaMode.includes('Source trust guidance') &&
+  ofertaMode.includes('Standard comparison table (required when an advertised salary figure exists)') &&
+  ofertaMode.includes('Same-market live postings') &&
+  ofertaMode.includes('Government baseline') &&
+  ofertaMode.includes('Comp type') &&
+  ofertaMode.includes('Geography') &&
+  ofertaMode.includes('Confidence') &&
+  ofertaMode.includes('Company-specific public comp') &&
+  ofertaMode.includes('Role/location market average') &&
+  ofertaMode.includes('Role/location upper quartile') &&
+  ofertaMode.includes('Estimated guaranteed cash') &&
+  ofertaMode.includes('Estimated target total comp') &&
+  ofertaMode.includes('Gap vs candidate minimum') &&
+  ofertaMode.includes('Gap vs candidate target range') &&
+  ofertaMode.includes('Comparison quality: {High | Medium | Low}') &&
   ofertaMode.includes('Required HR verification questions when a salary figure exists') &&
   ofertaMode.includes('Do not present advertised compensation as real take-home pay')
 ) {
@@ -1764,6 +1788,29 @@ if (
   batchPromptDoc.includes('Variable / conditional cash components') &&
   batchPromptDoc.includes('Expected stable cash') &&
   batchPromptDoc.includes('Non-cash benefits') &&
+  batchPromptDoc.includes('Source priority policy (required)') &&
+  batchPromptDoc.includes('Same-market live job-posting salary data') &&
+  batchPromptDoc.includes('Government baseline / sanity check') &&
+  batchPromptDoc.includes('Static-report fallback') &&
+  batchPromptDoc.includes('Base vs total-comp rule (required)') &&
+  batchPromptDoc.includes('base only') &&
+  batchPromptDoc.includes('base + bonus') &&
+  batchPromptDoc.includes('total comp') &&
+  batchPromptDoc.includes('unknown mix') &&
+  batchPromptDoc.includes('Source trust guidance') &&
+  batchPromptDoc.includes('Same-market live postings') &&
+  batchPromptDoc.includes('Government baseline') &&
+  batchPromptDoc.includes('Comp type') &&
+  batchPromptDoc.includes('Geography') &&
+  batchPromptDoc.includes('Confidence') &&
+  batchPromptDoc.includes('Company-specific public comp') &&
+  batchPromptDoc.includes('Role/location market average') &&
+  batchPromptDoc.includes('Role/location upper quartile') &&
+  batchPromptDoc.includes('Estimated guaranteed cash') &&
+  batchPromptDoc.includes('Estimated target total comp') &&
+  batchPromptDoc.includes('Gap vs candidate minimum') &&
+  batchPromptDoc.includes('Gap vs candidate target range') &&
+  batchPromptDoc.includes('Comparison quality: {High | Medium | Low}') &&
   batchPromptDoc.includes('When a salary figure exists, include 3-6 HR verification questions') &&
   batchPromptDoc.includes('Do not present advertised compensation as real take-home pay')
 ) {

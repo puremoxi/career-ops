@@ -117,3 +117,4 @@ plan/
 
 # Web
 .career-ops-web/logo-cache/.playwright-runtime/
+/.playwright-runtime/

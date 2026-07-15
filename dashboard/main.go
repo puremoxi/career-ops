@@ -23,12 +23,14 @@ const (
 	viewPipeline viewState = iota
 	viewReport
 	viewProgress
+	viewScanHistory
 )
 
 type appModel struct {
 	pipeline        screens.PipelineModel
 	viewer          screens.ViewerModel
 	progress        screens.ProgressModel
+	scanHistory     screens.ScanHistoryModel
 	state           viewState
 	careerOpsPath   string
 	theme           theme.Theme
@@ -66,6 +68,9 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.state == viewProgress {
 			m.progress.Resize(msg.Width, msg.Height)
+		}
+		if m.state == viewScanHistory {
+			m.scanHistory.Resize(msg.Width, msg.Height)
 		}
 		pm, cmd := m.pipeline.Update(msg)
 		m.pipeline = pm
@@ -167,6 +172,19 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state = viewPipeline
 		return m, nil
 
+	case screens.PipelineOpenScanHistoryMsg:
+		m.scanHistory = screens.NewScanHistoryModel(
+			theme.NewTheme("catppuccin-mocha"),
+			data.ParseScanRuns(m.careerOpsPath),
+			m.pipeline.Width(), m.pipeline.Height(),
+		)
+		m.state = viewScanHistory
+		return m, nil
+
+	case screens.ScanHistoryClosedMsg:
+		m.state = viewPipeline
+		return m, nil
+
 	case screens.PipelineOpenURLMsg:
 		return m, openCmd(msg.URL)
 
@@ -185,6 +203,11 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.state == viewProgress {
 			pg, cmd := m.progress.Update(msg)
 			m.progress = pg
+			return m, cmd
+		}
+		if m.state == viewScanHistory {
+			sh, cmd := m.scanHistory.Update(msg)
+			m.scanHistory = sh
 			return m, cmd
 		}
 		pm, cmd := m.pipeline.Update(msg)
@@ -250,6 +273,8 @@ func (m appModel) View() string {
 		return m.viewer.View()
 	case viewProgress:
 		return m.progress.View()
+	case viewScanHistory:
+		return m.scanHistory.View()
 	default:
 		return m.pipeline.View()
 	}

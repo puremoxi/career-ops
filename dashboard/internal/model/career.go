@@ -79,3 +79,30 @@ type WeekActivity struct {
 	Week  string // e.g., "2026-W14", "2026-W13"
 	Count int
 }
+
+// ScanRun represents one row of data/scan-runs.tsv — the per-run counters
+// appended by scan.mjs each time `node scan.mjs` completes.
+type ScanRun struct {
+	Timestamp  string // raw ISO 8601, e.g. "2026-07-15T18:58:12.710Z"
+	Status     string // "completed" | "failed"
+	Companies  int
+	Boards     int
+	Found      int
+	Filtered   int // sum of all filtered_* columns for this row
+	Dupes      int
+	NewAdded   int
+	Errors     int
+	DurationMs int // 0/unknown when the row predates duration tracking
+}
+
+// ScanHistoryMetrics holds aggregate stats over all scan runs, mirroring
+// stats.mjs's computeRunStats() so the dashboard and CLI report the same numbers.
+type ScanHistoryMetrics struct {
+	Runs             []ScanRun // newest first
+	TotalRuns        int
+	FailedRuns       int
+	AvgFoundPerRun   float64
+	AvgNewPerRun     float64
+	AvgDurationMs    float64 // average over runs with known duration; 0 if none known
+	FilterRemovalPct float64
+}

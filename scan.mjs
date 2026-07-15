@@ -1125,7 +1125,7 @@ const SCAN_RUNS_PATH = 'data/scan-runs.tsv';
 // 'completed' in v1; a follow-up wires failure-path writes so trend stats can
 // exclude survivorship bias. Consumers MUST parse by header name, never by
 // position — columns may be appended in later versions.
-export const SCAN_RUNS_HEADER = 'timestamp\tstatus\tcompanies\tboards\tfound\tfiltered_title\tfiltered_tier\tfiltered_location\tfiltered_posting_age\tfiltered_salary\tfiltered_content\tfiltered_cooldown\tdupes\tnew_added\terrors\tfiltered_blacklist\n';
+export const SCAN_RUNS_HEADER = 'timestamp\tstatus\tcompanies\tboards\tfound\tfiltered_title\tfiltered_tier\tfiltered_location\tfiltered_posting_age\tfiltered_salary\tfiltered_content\tfiltered_cooldown\tdupes\tnew_added\terrors\tfiltered_blacklist\tduration_ms\n';
 
 export function appendScanRunSummary(c, filePath = SCAN_RUNS_PATH) {
   if (!existsSync(filePath)) writeFileSync(filePath, SCAN_RUNS_HEADER, 'utf-8');
@@ -1133,10 +1133,11 @@ export function appendScanRunSummary(c, filePath = SCAN_RUNS_PATH) {
     c.timestamp, c.status ?? 'completed', c.companies, c.boards, c.found,
     c.filteredTitle, c.filteredTier, c.filteredLocation, c.filteredPostingAge,
     c.filteredSalary, c.filteredContent, c.filteredCooldown, c.dupes, c.newAdded, c.errors,
-    // filtered_blacklist (#1742) appended at the END, per the header-name
-    // contract above: files created with an older header keep parsing (the
-    // extra trailing cell is simply not named there).
+    // filtered_blacklist (#1742) and duration_ms are appended at the END, per
+    // the header-name contract above: files created with an older header keep
+    // parsing (the extra trailing cells are simply not named there).
     c.filteredBlacklist ?? 0,
+    c.durationMs ?? '',
   ].join('\t') + '\n';
   appendFileSync(filePath, row, 'utf-8');
 }
@@ -1283,6 +1284,7 @@ function guardStatusFor(code) {
 }
 
 async function main() {
+  const scanStartedAt = Date.now();
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
   const verify = args.includes('--verify');
@@ -1771,6 +1773,7 @@ async function main() {
       filteredContent: totalFilteredContent, filteredCooldown: totalFilteredCooldown,
       dupes: totalDupes, newAdded: verifiedOffers.length, errors: errors.length,
       filteredBlacklist: totalFilteredBlacklist,
+      durationMs: Date.now() - scanStartedAt,
     });
   }
 

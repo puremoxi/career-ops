@@ -92,6 +92,9 @@ type PipelineRefreshMsg struct{}
 // PipelineOpenProgressMsg is emitted when the progress screen should open.
 type PipelineOpenProgressMsg struct{}
 
+// PipelineOpenScanHistoryMsg is emitted when the scan history screen should open.
+type PipelineOpenScanHistoryMsg struct{}
+
 var canonicalDiscardReasons = []string{
 	"salary_too_low",
 	"hybrid_required",
@@ -604,6 +607,9 @@ func (m PipelineModel) handleKey(msg tea.KeyMsg) (PipelineModel, tea.Cmd) {
 
 	case "p":
 		return m, func() tea.Msg { return PipelineOpenProgressMsg{} }
+
+	case "S":
+		return m, func() tea.Msg { return PipelineOpenScanHistoryMsg{} }
 
 	case "r":
 		return m, func() tea.Msg { return PipelineRefreshMsg{} }
@@ -1857,6 +1863,7 @@ func (m PipelineModel) renderHelp() string {
 		keyStyle.Render("C") + descStyle.Render(i18n.Current.HelpColumns) +
 		keyStyle.Render("v") + descStyle.Render(i18n.Current.HelpView) +
 		keyStyle.Render("p") + descStyle.Render(i18n.Current.HelpProgress) +
+		keyStyle.Render("S") + descStyle.Render(i18n.Current.HelpScanHistory) +
 		keyStyle.Render("t") + descStyle.Render(i18n.Current.HelpLanguage) +
 		keyStyle.Render("m") + descStyle.Render(i18n.Current.HelpManifesto) +
 		keyStyle.Render("q") + descStyle.Render(i18n.Current.HelpQuit)

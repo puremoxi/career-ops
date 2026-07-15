@@ -35,7 +35,6 @@ import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import yaml from 'js-yaml';
-import { delegateNodeScriptToDocker, launchChromium } from './browser-runtime.mjs';
 import { LIVENESS_CONTEXT_OPTIONS, rejectPrivateOrInvalid } from './liveness-browser.mjs';
 
 const CAREER_OPS = dirname(fileURLToPath(import.meta.url));
@@ -183,10 +182,7 @@ async function readDom(page) {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  const delegatedExit = await delegateNodeScriptToDocker('browser-extract.mjs', args);
-  if (delegatedExit !== null) process.exit(delegatedExit);
-  const { url, mode, max, maxChars, timeout } = parseArgs(args);
+  const { url, mode, max, maxChars, timeout } = parseArgs(process.argv.slice(2));
 
   if (!url) {
     console.error(JSON.stringify({ error: 'usage: browser-extract.mjs <url> [--mode jd|listing] [--max N] [--max-chars N]', code: 'no_url' }));
@@ -207,16 +203,13 @@ async function main() {
   try {
     ({ chromium } = await import('playwright'));
   } catch {
-    console.error(JSON.stringify({
-      error: 'playwright not installed (in snap-confined shells prefer the Docker-backed runtime; otherwise install local Chromium with "npx playwright install chromium")',
-      code: 'no_playwright',
-    }));
+    console.error(JSON.stringify({ error: 'playwright not installed', code: 'no_playwright' }));
     process.exit(1);
   }
 
   let browser;
   try {
-    browser = await launchChromium(chromium, { headless: true });
+    browser = await chromium.launch({ headless: true });
     const context = await browser.newContext(LIVENESS_CONTEXT_OPTIONS);
     // Block every request (main navigation, redirect hop, or subresource) to a
     // private/loopback/link-local or non-http(s) host. Guarding only the initial

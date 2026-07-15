@@ -97,11 +97,7 @@ Built by someone who used it to evaluate 740+ job offers, generate 100+ tailored
 
 ## The CareerOps Manifesto
 
-**[Read the manifesto](./MANIFESTO.md)** ([career-ops.org/manifesto](https://career-ops.org/manifesto)) and [sign it](./SIGNATURES.md) -- for many signers, it is their first commit.
-
-> CareerOps is the practice of running a job search the way engineers run production: with evidence, with discipline, and with tools on the candidate's side of the table.
-
-> **On contributor counts:** signatures are credited via `Co-authored-by` and tracked in [SIGNATURES.md](./SIGNATURES.md); code contributors are tracked separately in [CONTRIBUTORS.md](./CONTRIBUTORS.md).
+career-ops is the first reference implementation of [the CareerOps Manifesto](https://career-ops.org/manifesto?utm_source=readme). read it. if it says what you believe, sign it. your signature becomes a commit.
 
 ## Features
 
@@ -148,10 +144,7 @@ claude   # or codex / qwen / opencode / agy / grok — open your AI CLI here
 ```bash
 git clone https://github.com/santifer/career-ops.git
 cd career-ops && npm install
-npx playwright install chromium   # local fallback only; on Codex/snap shells prefer `npm run pdf -- ...`
-
-# Preferred for PDFs on Codex/snap shells: use the Docker-backed wrapper
-npm run pdf -- output/cv-example.html output/cv-example.pdf
+npx playwright install chromium   # only needed for PDF generation
 
 # 2. Check setup
 npm run doctor                     # Validates all prerequisites

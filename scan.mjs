@@ -44,11 +44,12 @@ import { classifyFetchError } from './verify-portals.mjs';
 import { fingerprintText, findCrossListings } from './fingerprint-core.mjs';
 import { resolveColumns, parseTrackerRow } from './tracker-parse.mjs';
 import { normalizeCompany } from './tracker-utils.mjs';
-import { delegateNodeScriptToDocker, launchChromium } from './browser-runtime.mjs';
 
 try {
   const { config } = await import('dotenv');
-  config();
+  // quiet: dotenv's startup banner goes to stdout, which --json reserves for a
+  // single JSON object (#1906).
+  config({ quiet: true });
 } catch {
   // dotenv is optional — fall back to process.env if not installed
 }
@@ -1174,17 +1175,17 @@ async function verifyOffers(offers, { headedFallback = false, throttleBaseMs = 0
     ({ checkUrlLiveness, checkUrlLivenessWithFallback, createHeadedPageProvider, newLivenessPage, jitteredDelayMs, sleep } = await import('./liveness-browser.mjs'));
   } catch (err) {
     throw new Error(
-      `--verify requires Playwright. In snap-confined shells prefer the Docker-backed path; otherwise install local Chromium with "npx playwright install chromium": ${err.message}`,
+      `--verify requires Playwright with Chromium (run "npx playwright install chromium"): ${err.message}`,
       { cause: err },
     );
   }
 
   let browser;
   try {
-    browser = await launchChromium(chromium, { headless: true });
+    browser = await chromium.launch({ headless: true });
   } catch (err) {
     throw new Error(
-      `--verify could not launch Chromium. In snap-confined shells use the Docker-backed runtime; otherwise install local Chromium with "npx playwright install chromium", or re-run without --verify: ${err.message}`,
+      `--verify could not launch Chromium (run "npx playwright install chromium" or re-run without --verify): ${err.message}`,
       { cause: err },
     );
   }
@@ -1202,9 +1203,7 @@ async function verifyOffers(offers, { headedFallback = false, throttleBaseMs = 0
   const invalid = [];
   const migrated = [];
 
-  const headed = headedFallback
-    ? createHeadedPageProvider(chromium, { launchBrowser: (options) => launchChromium(chromium, options) })
-    : null;
+  const headed = headedFallback ? createHeadedPageProvider(chromium) : null;
   const getHeadedPage = headed ? () => headed.get() : undefined;
 
   try {
@@ -1287,10 +1286,6 @@ async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
   const verify = args.includes('--verify');
-  if (verify) {
-    const delegatedExit = await delegateNodeScriptToDocker('scan.mjs', args);
-    if (delegatedExit !== null) process.exit(delegatedExit);
-  }
   // Opt-in: on an anti-bot challenge (e.g. pracuj.pl Cloudflare wall), retry the
   // URL in a headed browser. Off by default — headed Chromium needs a display, so
   // scheduled/unattended scans should not rely on it.
@@ -1781,6 +1776,23 @@ async function main() {
 
   console.log(`\n→ Run /career-ops pipeline to evaluate new offers.`);
   console.log('→ Share results and get help: https://discord.gg/8pRpHETxa4');
+
+  // One-time-ever manifesto note: first successful REAL run only. The state
+  // file keeps it from ever repeating; --dry-run must leave no trace, and a
+  // piped/quiet run is not the moment for it.
+  if (!dryRun && process.stdout.isTTY && !process.argv.includes('--quiet') && !existsSync('.manifesto-noted')) {
+    // OSC 8 hyperlink where support is known, so the click attributes as
+    // utm_source=cli while the visible text stays clean; otherwise print the
+    // URL with the utm so typed visits attribute too.
+    const osc8 = ['iTerm.app', 'WezTerm', 'vscode', 'ghostty', 'Hyper', 'Tabby'].includes(process.env.TERM_PROGRAM)
+      || !!process.env.WT_SESSION || !!process.env.KITTY_WINDOW_ID
+      || parseInt(process.env.VTE_VERSION || '0', 10) >= 5000;
+    const link = osc8
+      ? '\x1b]8;;https://career-ops.org/manifesto?utm_source=cli\x1b\\career-ops.org/manifesto\x1b]8;;\x1b\\'
+      : 'career-ops.org/manifesto?utm_source=cli';
+    console.log(`\nthe practice behind this tool has a name and a manifesto: ${link}`);
+    try { writeFileSync('.manifesto-noted', new Date().toISOString() + '\n'); } catch { /* best-effort */ }
+  }
 }
 
 // Only run main() when invoked directly (`node scan.mjs`), not when imported by tests.

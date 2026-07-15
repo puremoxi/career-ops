@@ -27,13 +27,6 @@ import { readFile } from 'fs/promises';
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { randomUUID } from 'node:crypto';
-import {
-  dockerComposeCmd,
-  launchChromium,
-  repoRelativeProjectPath,
-  runNodeScriptInDocker,
-  shouldPreferDockerRuntime,
-} from './browser-runtime.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PDF_PAGE_MARGIN = '0.6in';
@@ -225,23 +218,6 @@ export function repoRelativeManifestPath(pathValue) {
   return rel.split(sep).join('/');
 }
 
-function runPdfInDocker(inputPath, outputPath, { format = 'a4', reportNum = '', allowReorder = false } = {}) {
-  const relInput = repoRelativeProjectPath(inputPath);
-  const relOutput = repoRelativeProjectPath(outputPath);
-  if (!relInput || !relOutput) {
-    throw new Error('Docker PDF delegation requires input/output paths inside the project directory');
-  }
-  const args = [
-    relInput,
-    relOutput,
-    `--format=${format}`,
-  ];
-  if (reportNum) args.push(`--report=${reportNum}`);
-  if (allowReorder) args.push('--allow-reorder');
-  runNodeScriptInDocker('generate-pdf.mjs', args);
-  return true;
-}
-
 export function injectPrintPageCss(html, format = 'a4') {
   const normalizedFormat = String(format || 'a4').toLowerCase();
   const pageSize = normalizedFormat === 'letter' ? 'Letter' : 'A4';
@@ -385,7 +361,7 @@ async function generatePDF() {
     console.log(`🧹 ATS normalization: ${totalReplacements} replacements (${breakdown})`);
   }
 
-  return renderHtmlToPdf(html, outputPath, { format, baseDir: dirname(inputPath), reportNum, inputPath, allowReorder });
+  return renderHtmlToPdf(html, outputPath, { format, baseDir: dirname(inputPath), reportNum, inputPath });
 }
 
 /**
@@ -455,7 +431,6 @@ export async function renderHtmlToPdf(html, outputPath, opts = {}) {
   const baseDir = opts.baseDir || process.cwd();
   const reportNum = opts.reportNum || '';
   const inputPath = opts.inputPath || '';
-  const allowReorder = Boolean(opts.allowReorder);
 
   mkdirSync(dirname(outputPath), { recursive: true });
 
@@ -468,30 +443,10 @@ export async function renderHtmlToPdf(html, outputPath, opts = {}) {
   const { writeFile, unlink } = await import('fs/promises');
   await writeFile(tmpHtmlPath, html, 'utf-8');
 
-  const canDelegateToDocker =
-    !opts.launchBrowser &&
-    shouldPreferDockerRuntime() &&
-    dockerComposeCmd() &&
-    process.env.CAREER_OPS_PDF_FORCE_LOCAL !== '1';
-  if (canDelegateToDocker) {
-    try {
-      runPdfInDocker(tmpHtmlPath, outputPath, { format, reportNum, allowReorder });
-      const { stat } = await import('fs/promises');
-      const stats = await stat(outputPath);
-      return { outputPath, pageCount: 0, size: stats.size };
-    } finally {
-      await unlink(tmpHtmlPath).catch((err) => {
-        if (err?.code !== 'ENOENT') {
-          console.warn(`⚠️  Temporary HTML cleanup failed: ${err.message}`);
-        }
-      });
-    }
-  }
-
-  const launchBrowserImpl = opts.launchBrowser || ((options) => launchChromium(chromium, options));
+  const launchBrowser = opts.launchBrowser || ((options) => chromium.launch(options));
   let browser = null;
   try {
-    browser = await launchBrowserImpl({ headless: true });
+    browser = await launchBrowser({ headless: true });
     const page = await browser.newPage();
 
     // Load from file:// so the page origin allows local subresources

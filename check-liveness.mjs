@@ -17,7 +17,6 @@
 
 import { chromium } from 'playwright';
 import { readFile } from 'fs/promises';
-import { delegateNodeScriptToDocker, launchChromium } from './browser-runtime.mjs';
 import {
   checkUrlLivenessWithFallback,
   createHeadedPageProvider,
@@ -29,8 +28,6 @@ import { checkLivenessViaApi } from './liveness-api.mjs';
 
 async function main() {
   const args = process.argv.slice(2);
-  const delegatedExit = await delegateNodeScriptToDocker('check-liveness.mjs', args);
-  if (delegatedExit !== null) process.exit(delegatedExit);
 
   // Portals like pracuj.pl serve a Cloudflare anti-bot wall to headless Chromium.
   // On a challenge we retry once in a headed browser (which clears it); pass
@@ -66,19 +63,11 @@ async function main() {
   // Lazy browser: the API rung resolves ATS postings with no browser at all, so we
   // only launch Playwright if a URL actually needs the fallback.
   let browser = null, page = null, headed = null;
-  let browserUnavailableReason = null;
   async function ensureBrowser() {
-    if (browser) return true;
-    if (browserUnavailableReason) return false;
-    try {
-      browser = await launchChromium(chromium, { headless: true });
-      page = await newLivenessPage(browser);
-      headed = noFallback ? null : createHeadedPageProvider(chromium, { launchBrowser: (options) => launchChromium(chromium, options) });
-      return true;
-    } catch (err) {
-      browserUnavailableReason = err instanceof Error ? err.message.split('\n')[0] : String(err);
-      return false;
-    }
+    if (browser) return;
+    browser = await chromium.launch({ headless: true });
+    page = await newLivenessPage(browser);
+    headed = noFallback ? null : createHeadedPageProvider(chromium);
   }
 
   let active = 0, expired = 0, uncertain = 0, viaApi = 0;
@@ -95,15 +84,10 @@ async function main() {
       viaApi++;
     } else {
       // Rung 2: Playwright — handles non-ATS pages and inconclusive API results.
-      const browserReady = await ensureBrowser();
-      if (!browserReady) {
-        result = 'uncertain';
-        reason = `browser unavailable: ${browserUnavailableReason}`;
-      } else {
-        const getHeadedPage = headed ? () => headed.get() : undefined;
-        ({ result, reason } = await checkUrlLivenessWithFallback(page, url, { getHeadedPage }));
-        usedBrowser = true;
-      }
+      await ensureBrowser();
+      const getHeadedPage = headed ? () => headed.get() : undefined;
+      ({ result, reason } = await checkUrlLivenessWithFallback(page, url, { getHeadedPage }));
+      usedBrowser = true;
     }
 
     const icon = { active: '✅', expired: '❌', uncertain: '⚠️' }[result];

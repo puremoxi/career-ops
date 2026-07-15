@@ -1,6 +1,6 @@
 # signature-ci — valida la FORMA de los PRs de firma (corre CON o SIN Ledger Bot).
 # Destino: .github/workflows/signature-ci.yml
-# v2.2 (Santiago, final): el firmante SOLO añade 1 línea al FINAL (un guion o su
+# v2.2 (final): el firmante SOLO añade 1 línea al FINAL (un guion o su
 # frase). Cero formato que validar: 1 línea añadida / 0 borradas / solo
 # SIGNATURES.md / al final del fichero / ≤200 chars / sin bidi/zero-width.
 # La identidad es ESTRUCTURAL (autor del PR) — la línea canónica la escribe el bot.

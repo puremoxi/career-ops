@@ -49,8 +49,8 @@
     "star": "node match-star.mjs",
     "archive": "node archive-posting.mjs",
     "prepare:application": "node prepare-application.mjs",
-    "build:dashboard": "node build-dashboard.mjs",
-    "serve:dashboard": "cd dashboard && go run . --path ..",
+    "build:dashboard": "bash scripts/dashboard-entrypoint.sh build",
+    "serve:dashboard": "bash scripts/dashboard-entrypoint.sh serve",
     "postinstall": "npx playwright install chromium --with-deps || npx playwright install chromium --with-deps"
   },
   "keywords": [

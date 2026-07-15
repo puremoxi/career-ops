@@ -11,7 +11,7 @@ All scripts live in the project root as `.mjs` modules and are exposed via `npm 
 | `npm run normalize` | `normalize-statuses.mjs` | Fix non-canonical statuses |
 | `npm run dedup` | `dedup-tracker.mjs` | Remove duplicate tracker entries |
 | `npm run merge` | `merge-tracker.mjs` | Merge batch TSVs into applications.md |
-| `npm run pdf` | `generate-pdf.mjs` | Convert HTML to ATS-optimized PDF |
+| `npm run pdf` | `scripts/pdf-entrypoint.sh` | Convert HTML to ATS-optimized PDF (Docker-first, local fallback) |
 | `npm run img-to-pdf` | `img-to-pdf.mjs` | Convert a single screenshot/image into a single-page PDF |
 | `npm run build:latex` | `build-cv-latex.mjs` | Build .tex from structured JSON payload |
 | `npm run sync-check` | `cv-sync-check.mjs` | Validate CV/profile consistency |
@@ -36,7 +36,7 @@ All scripts live in the project root as `.mjs` modules and are exposed via `npm 
 
 ## doctor
 
-Validates that all prerequisites are in place: Node.js >= 18, dependencies installed, Playwright chromium, required files (`cv.md`, `config/profile.yml`, `portals.yml`), fonts directory, and auto-creates `data/`, `output/`, `reports/` if missing.
+Validates that all prerequisites are in place: Node.js >= 18, dependencies installed, Playwright chromium, Playwright system packages, required files (`cv.md`, `config/profile.yml`, `portals.yml`), fonts directory, and auto-creates `data/`, `output/`, `reports/` if missing. In snap-confined shells it warns that Docker is the preferred browser runtime, instead of treating the shell-specific Chromium launch failure as a broken repo.
 
 ```bash
 npm run doctor
@@ -55,6 +55,24 @@ npm run verify
 ```
 
 **Exit codes:** `0` pipeline clean (zero errors), `1` errors found. Warnings (e.g. possible duplicates) do not cause a non-zero exit.
+
+---
+
+## pdf
+
+Default PDF renderer entrypoint. Outside a container, it prefers the repo's
+Docker Compose service so Playwright runs in a stable environment and the
+generated PDF still lands in your local `output/` directory through the bind
+mount. If Docker is unavailable, it falls back to local Playwright.
+
+```bash
+npm run pdf -- input.html output.pdf
+npm run pdf -- input.html output.pdf --format=letter   # US letter
+npm run pdf -- input.html output.pdf --format=a4       # A4 (default)
+npm run pdf:local -- input.html output.pdf             # force local Playwright
+```
+
+On Codex snap shells, prefer `npm run pdf -- ...` over `node generate-pdf.mjs ...`.
 
 ---
 
@@ -117,20 +135,6 @@ node validate-portals.mjs --self-test
 ```
 
 **Exit codes:** `0` no errors (warnings allowed), `1` one or more errors found.
-
----
-
-## pdf
-
-Renders an HTML file to a print-quality, ATS-parseable PDF via headless Chromium. Resolves font paths from `fonts/`, normalizes Unicode for ATS compatibility (em-dashes, smart quotes, zero-width characters), and reports page count and file size.
-
-```bash
-npm run pdf -- input.html output.pdf
-npm run pdf -- input.html output.pdf --format=letter   # US letter
-npm run pdf -- input.html output.pdf --format=a4        # A4 (default)
-```
-
-**Exit codes:** `0` PDF generated, `1` missing arguments or generation failure.
 
 ---
 

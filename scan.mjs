@@ -44,6 +44,7 @@ import { classifyFetchError } from './verify-portals.mjs';
 import { fingerprintText, findCrossListings } from './fingerprint-core.mjs';
 import { resolveColumns, parseTrackerRow } from './tracker-parse.mjs';
 import { normalizeCompany } from './tracker-utils.mjs';
+import { delegateNodeScriptToDocker, launchChromium } from './browser-runtime.mjs';
 
 try {
   const { config } = await import('dotenv');
@@ -1173,17 +1174,17 @@ async function verifyOffers(offers, { headedFallback = false, throttleBaseMs = 0
     ({ checkUrlLiveness, checkUrlLivenessWithFallback, createHeadedPageProvider, newLivenessPage, jitteredDelayMs, sleep } = await import('./liveness-browser.mjs'));
   } catch (err) {
     throw new Error(
-      `--verify requires Playwright with Chromium (run "npx playwright install chromium"): ${err.message}`,
+      `--verify requires Playwright. In snap-confined shells prefer the Docker-backed path; otherwise install local Chromium with "npx playwright install chromium": ${err.message}`,
       { cause: err },
     );
   }
 
   let browser;
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await launchChromium(chromium, { headless: true });
   } catch (err) {
     throw new Error(
-      `--verify could not launch Chromium (run "npx playwright install chromium" or re-run without --verify): ${err.message}`,
+      `--verify could not launch Chromium. In snap-confined shells use the Docker-backed runtime; otherwise install local Chromium with "npx playwright install chromium", or re-run without --verify: ${err.message}`,
       { cause: err },
     );
   }
@@ -1201,7 +1202,9 @@ async function verifyOffers(offers, { headedFallback = false, throttleBaseMs = 0
   const invalid = [];
   const migrated = [];
 
-  const headed = headedFallback ? createHeadedPageProvider(chromium) : null;
+  const headed = headedFallback
+    ? createHeadedPageProvider(chromium, { launchBrowser: (options) => launchChromium(chromium, options) })
+    : null;
   const getHeadedPage = headed ? () => headed.get() : undefined;
 
   try {
@@ -1284,6 +1287,10 @@ async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
   const verify = args.includes('--verify');
+  if (verify) {
+    const delegatedExit = await delegateNodeScriptToDocker('scan.mjs', args);
+    if (delegatedExit !== null) process.exit(delegatedExit);
+  }
   // Opt-in: on an anti-bot challenge (e.g. pracuj.pl Cloudflare wall), retry the
   // URL in a headed browser. Off by default — headed Chromium needs a display, so
   // scheduled/unattended scans should not rely on it.

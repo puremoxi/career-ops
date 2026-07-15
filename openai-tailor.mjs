@@ -304,7 +304,7 @@ try {
   const reportNumMatch = reportFilename.match(/^(\d+)-/);
   const reportNum = reportNumMatch ? reportNumMatch[1] : '001';
 
-  console.log(`\n📄  Next step (generate PDF):\n    node generate-pdf.mjs output/${filename} output/${pdfFilename} --format=letter --report=${reportNum}\n`);
+  console.log(`\n📄  Next step (generate PDF):\n    npm run pdf -- output/${filename} output/${pdfFilename} --format=letter --report=${reportNum}\n`);
 
 } catch (err) {
   console.warn(`⚠️   Could not save HTML: ${err.message}`);

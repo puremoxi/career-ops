@@ -525,6 +525,8 @@ search_queries:
 #   amazon          amazon.jobs           (global board; provider: amazon + an amazon: filter block, see below)
 #   successfactors  *.successfactors.(eu|com) / *.jobs2web.com  (SAP SF Recruiting Marketing / RMK boards;
 #                   branded hosts like jobs.<company>.com need provider: successfactors + api: <board origin>)
+#   eightfold       <tenant>.eightfold.ai  (branded hosts like explore.jobs.netflix.net need
+#                   provider: eightfold + an eightfold: { domain: "<company>.com" } block, see below)
 #
 # When the public careers URL is a branded custom domain (e.g.
 # careers.adyen.com), set `provider: smartrecruiters` explicitly to
@@ -604,6 +606,18 @@ search_queries:
 #   careers_url: https://www.exampleco.com/careers   # public/branded careers page
 #   provider: successfactors
 #   api: https://jobs.exampleco.com                  # RMK board origin
+#   enabled: true
+#
+# - name: Example Eightfold Co
+#   # Eightfold AI-powered career site. Auto-detects any *.eightfold.ai host;
+#   # a branded custom domain (e.g. Netflix's explore.jobs.netflix.net) needs
+#   # provider: eightfold explicitly, plus the eightfold.domain block below —
+#   # Eightfold's internal per-tenant domain key, not derivable from the URL.
+#   careers_url: https://explore.jobs.exampleco.com/careers
+#   provider: eightfold
+#   eightfold:
+#     domain: exampleco.com
+#   max_pages: 150          # optional page cap (10 jobs/page, default 150 → 1500 postings)
 #   enabled: true
 #
 # - name: SolidJobs — Engineering

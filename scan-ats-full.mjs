@@ -40,6 +40,7 @@ import ashby from './providers/ashby.mjs';
 import workday from './providers/workday.mjs';
 import { buildTitleFilter, buildLocationFilter, loadSeenUrls, appendToPipeline, appendToScanHistory } from './scan.mjs';
 import { SEED_SOURCES, toPortalEntry } from './seeds/vc-portfolios.mjs';
+import { delegateNodeScriptToDocker, launchChromium } from './browser-runtime.mjs';
 
 // ── Config ──────────────────────────────────────────────────────────
 
@@ -369,12 +370,12 @@ async function filterLive(offers) {
     ({ checkUrlLiveness, newLivenessPage } = await import('./liveness-browser.mjs'));
   } catch (err) {
     throw new Error(
-      `--liveness requires Playwright with Chromium (run "npx playwright install chromium"): ${err.message}`,
+      `--liveness requires Playwright. In snap-confined shells prefer the Docker-backed runtime; otherwise install local Chromium with "npx playwright install chromium": ${err.message}`,
       { cause: err },
     );
   }
   console.error(`\nVerifying liveness of ${offers.length} match(es) with Playwright (sequential)...`);
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchChromium(chromium, { headless: true });
   const live = [];
   try {
     const page = await newLivenessPage(browser);
@@ -396,6 +397,10 @@ async function filterLive(offers) {
 
 async function main() {
   const opts = parseArgs(process.argv);
+  if (opts.liveness) {
+    const delegatedExit = await delegateNodeScriptToDocker('scan-ats-full.mjs', process.argv.slice(2));
+    if (delegatedExit !== null) process.exit(delegatedExit);
+  }
   const cutoff = Date.now() - opts.sinceDays * 86_400_000;
   // In --json mode, stdout is reserved for the single machine-readable result,
   // so every human-facing line goes to stderr instead.

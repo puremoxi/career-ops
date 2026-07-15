@@ -148,7 +148,10 @@ claude   # or codex / qwen / opencode / agy / grok — open your AI CLI here
 ```bash
 git clone https://github.com/santifer/career-ops.git
 cd career-ops && npm install
-npx playwright install chromium   # only needed for PDF generation
+npx playwright install chromium   # local fallback only; on Codex/snap shells prefer `npm run pdf -- ...`
+
+# Preferred for PDFs on Codex/snap shells: use the Docker-backed wrapper
+npm run pdf -- output/cv-example.html output/cv-example.pdf
 
 # 2. Check setup
 npm run doctor                     # Validates all prerequisites

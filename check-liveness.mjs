@@ -17,6 +17,7 @@
 
 import { chromium } from 'playwright';
 import { readFile } from 'fs/promises';
+import { delegateNodeScriptToDocker, launchChromium } from './browser-runtime.mjs';
 import {
   checkUrlLivenessWithFallback,
   createHeadedPageProvider,
@@ -28,6 +29,8 @@ import { checkLivenessViaApi } from './liveness-api.mjs';
 
 async function main() {
   const args = process.argv.slice(2);
+  const delegatedExit = await delegateNodeScriptToDocker('check-liveness.mjs', args);
+  if (delegatedExit !== null) process.exit(delegatedExit);
 
   // Portals like pracuj.pl serve a Cloudflare anti-bot wall to headless Chromium.
   // On a challenge we retry once in a headed browser (which clears it); pass
@@ -68,9 +71,9 @@ async function main() {
     if (browser) return true;
     if (browserUnavailableReason) return false;
     try {
-      browser = await chromium.launch({ headless: true });
+      browser = await launchChromium(chromium, { headless: true });
       page = await newLivenessPage(browser);
-      headed = noFallback ? null : createHeadedPageProvider(chromium);
+      headed = noFallback ? null : createHeadedPageProvider(chromium, { launchBrowser: (options) => launchChromium(chromium, options) });
       return true;
     } catch (err) {
       browserUnavailableReason = err instanceof Error ? err.message.split('\n')[0] : String(err);

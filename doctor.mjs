@@ -6,13 +6,16 @@
  */
 
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
+import { spawnSync } from 'child_process';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 import yaml from 'js-yaml';
 import { discoverPlugins, pluginRoots, pluginStatus } from './plugins/_engine.mjs';
 import { resolveExtractorMode } from './browser-extract.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
 const argv = process.argv.slice(2);
 const targetIdx = argv.indexOf('--target');
 const projectRoot =
@@ -28,6 +31,77 @@ const green = (s) => isTTY ? `\x1b[32m${s}\x1b[0m` : s;
 const red = (s) => isTTY ? `\x1b[31m${s}\x1b[0m` : s;
 const yellow = (s) => isTTY ? `\x1b[33m${s}\x1b[0m` : s;
 const dim = (s) => isTTY ? `\x1b[2m${s}\x1b[0m` : s;
+const PLAYWRIGHT_DEBIAN_PACKAGES = [
+  'fonts-freefont-ttf',
+  'fonts-ipafont-gothic',
+  'fonts-liberation',
+  'fonts-noto-color-emoji',
+  'fonts-tlwg-loma-otf',
+  'fonts-unifont',
+  'fonts-wqy-zenhei',
+  'libasound2',
+  'libasound2-data',
+  'libfontenc1',
+  'libice6',
+  'libsm6',
+  'libxaw7',
+  'libxfont2',
+  'libxkbfile1',
+  'libxmu6',
+  'libxt6',
+  'x11-xkb-utils',
+  'xfonts-cyrillic',
+  'xfonts-encodings',
+  'xfonts-scalable',
+  'xfonts-utils',
+  'xserver-common',
+  'xvfb',
+];
+
+function buildPlaywrightDepsEnv() {
+  const env = { ...process.env };
+  const pathEntries = (env.PATH || '').split(':').filter(Boolean);
+  const extras = [];
+  if (existsSync('/usr/bin/apt-get')) extras.push('/usr/bin');
+  if (existsSync('/var/lib/snapd/hostfs/usr/bin/apt-get')) {
+    extras.push('/var/lib/snapd/hostfs/usr/bin');
+  }
+  env.PATH = [...extras, ...pathEntries].join(':');
+  return env;
+}
+
+function isSnapConfinedShell() {
+  if (process.env.SNAP) return true;
+  try {
+    const mountinfo = readFileSync('/proc/self/mountinfo', 'utf8');
+    return /\/snap\/|snapd/.test(mountinfo);
+  } catch {
+    return false;
+  }
+}
+
+function readInstalledDebianPackages() {
+  const statusFiles = [
+    '/var/lib/dpkg/status',
+    '/var/lib/snapd/hostfs/var/lib/dpkg/status',
+  ];
+  for (const file of statusFiles) {
+    if (!existsSync(file)) continue;
+    try {
+      const installed = new Set();
+      const paragraphs = readFileSync(file, 'utf8').split('\n\n');
+      for (const paragraph of paragraphs) {
+        const pkg = paragraph.match(/^Package:\s+(.+)$/m)?.[1]?.trim();
+        const status = paragraph.match(/^Status:\s+(.+)$/m)?.[1]?.trim();
+        if (pkg && status === 'install ok installed') installed.add(pkg);
+      }
+      if (installed.size > 0) return installed;
+    } catch {
+      // Try next status file.
+    }
+  }
+  return null;
+}
 
 function checkNodeVersion() {
   const major = parseInt(process.versions.node.split('.')[0]);
@@ -52,17 +126,152 @@ function checkDependencies() {
   };
 }
 
-async function checkPlaywright() {
-  let chromium;
+function checkPlaywrightDockerVersionSync() {
+  const pkgPath = join(projectRoot, 'package.json');
+  const dockerfilePath = join(projectRoot, 'Dockerfile');
+  if (!existsSync(pkgPath) || !existsSync(dockerfilePath)) {
+    return { pass: true, label: 'Playwright Docker version sync check skipped' };
+  }
   try {
-    ({ chromium } = await import('playwright'));
-  } catch {
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+    const pkgVersion = pkg?.dependencies?.playwright || pkg?.devDependencies?.playwright;
+    const dockerText = readFileSync(dockerfilePath, 'utf8');
+    const imageVersion = dockerText.match(/FROM\s+mcr\.microsoft\.com\/playwright:v([0-9.]+)-/m)?.[1];
+    if (!pkgVersion || !imageVersion) {
+      return { warn: true, label: 'Playwright Docker version sync check inconclusive' };
+    }
+    if (pkgVersion === imageVersion) {
+      return { pass: true, label: `Playwright package/Docker image versions aligned (${pkgVersion})` };
+    }
     return {
       pass: false,
-      label: 'Playwright chromium not installed',
-      fix: 'Run: npx playwright install chromium',
+      label: `Playwright package/Docker image versions differ (${pkgVersion} vs ${imageVersion})`,
+      fix: [
+        `Update package.json or Dockerfile so both use the same Playwright version.`,
+        `Current package.json: ${pkgVersion}`,
+        `Current Dockerfile base image: ${imageVersion}`,
+      ],
+    };
+  } catch (err) {
+    return {
+      warn: true,
+      label: `Playwright Docker version sync check failed: ${err.message}`,
     };
   }
+}
+
+async function loadPlaywright() {
+  try {
+    return await import('playwright');
+  } catch {
+    return null;
+  }
+}
+
+async function checkPlaywrightInstalled() {
+  const playwright = await loadPlaywright();
+  if (playwright?.chromium) {
+    return { pass: true, label: 'Playwright package installed' };
+  }
+  return {
+    pass: false,
+    label: 'Playwright package not installed',
+    fix: 'Run: npm install',
+  };
+}
+
+function resolvePlaywrightCliPath() {
+  try {
+    const pkgPath = require.resolve('playwright/package.json', { paths: [projectRoot] });
+    return join(dirname(pkgPath), 'cli.js');
+  } catch {
+    return null;
+  }
+}
+
+function parseMissingPlaywrightDeps(output) {
+  const lines = output.split(/\r?\n/);
+  const idx = lines.findIndex((line) => /^Missing system dependencies \(\d+\):$/.test(line.trim()));
+  if (idx === -1) return [];
+  const deps = [];
+  for (let i = idx + 1; i < lines.length; i++) {
+    const line = lines[i];
+    const match = line.match(/^\s{2,}(\S+)$/);
+    if (match) {
+      deps.push(match[1]);
+      continue;
+    }
+    if (line.trim() === '' || line.startsWith('Installing dependencies')) {
+      break;
+    }
+    if (!line.startsWith(' ')) break;
+  }
+  return deps;
+}
+
+async function checkPlaywrightSystemDeps() {
+  if (process.platform !== 'linux') {
+    return { pass: true, label: 'Playwright system packages check skipped (non-Linux)' };
+  }
+  const playwright = await loadPlaywright();
+  if (!playwright?.chromium) {
+    return { warn: true, label: 'Playwright system packages check skipped (Playwright not installed)' };
+  }
+  const cliPath = resolvePlaywrightCliPath();
+  if (!cliPath || !existsSync(cliPath)) {
+    return { warn: true, label: 'Playwright system packages check skipped (CLI not found)' };
+  }
+  const run = spawnSync(process.execPath, [cliPath, 'install-deps', 'chromium', '--dry-run'], {
+    cwd: projectRoot,
+    encoding: 'utf8',
+    env: buildPlaywrightDepsEnv(),
+  });
+  const output = `${run.stdout || ''}${run.stderr || ''}`;
+  const deps = parseMissingPlaywrightDeps(output);
+  if (deps.length > 0) {
+    return {
+      pass: false,
+      label: `Playwright system packages missing (${deps.length})`,
+      fix: [
+        ...deps,
+        'Run: npx playwright install-deps chromium',
+      ],
+    };
+  }
+  if (run.status === 0) {
+    return { pass: true, label: 'Playwright system packages ready' };
+  }
+  const installedPackages = readInstalledDebianPackages();
+  if (installedPackages) {
+    const missing = PLAYWRIGHT_DEBIAN_PACKAGES.filter((pkg) => !installedPackages.has(pkg));
+    if (missing.length > 0) {
+      return {
+        pass: false,
+        label: `Playwright system packages missing (${missing.length})`,
+        fix: [
+          ...missing,
+          'Run: sudo npx playwright install-deps chromium',
+        ],
+      };
+    }
+    return { pass: true, label: 'Playwright system packages ready (Debian/Ubuntu package check)' };
+  }
+  return {
+    warn: true,
+    label: 'Playwright system packages check inconclusive',
+    fix: output.trim() ? [output.trim().split(/\r?\n/)[0]] : [],
+  };
+}
+
+async function checkPlaywrightLaunch() {
+  const playwright = await loadPlaywright();
+  if (!playwright?.chromium) {
+    return {
+      warn: true,
+      label: 'Playwright browser launch check skipped (Playwright not installed)',
+    };
+  }
+  const { chromium } = playwright;
   // Validate by launching — chromium.executablePath() points at Chrome for Testing
   // (full binary) but chromium.launch() may use the headless-shell binary, which
   // lives at a different path and requires a separate install. Launching directly
@@ -71,16 +280,48 @@ async function checkPlaywright() {
   let browser;
   try {
     browser = await chromium.launch({ headless: true });
-    return { pass: true, label: 'Playwright chromium installed' };
-  } catch {
+    return { pass: true, label: 'Playwright chromium launches successfully' };
+  } catch (err) {
+    const full = String(err?.stack || err?.message || '');
+    const libLine = full.split('\n').find((line) => line.includes('error while loading shared libraries'));
+    const message =
+      libLine?.trim() ||
+      full.split('\n').find(Boolean) ||
+      'Unknown Playwright launch failure';
+    if (isSnapConfinedShell()) {
+      return {
+        warn: true,
+        label: 'Playwright chromium launch is blocked in this snap-confined shell (expected here; repo is not broken)',
+        fix: [
+          message,
+          'Use Docker as the default browser runtime in this shell: `npm run pdf -- <input.html> <output.pdf> ...`.',
+          'The wrapper will start `docker compose` and render inside the repo Docker image so output files still land in your working tree.',
+        ],
+      };
+    }
     return {
       pass: false,
-      label: 'Playwright chromium not installed',
-      fix: 'Run: npx playwright install chromium',
+      label: 'Playwright chromium launch failed',
+      fix: [
+        message,
+        'If dependencies are installed but this still fails, the runtime sandbox may be blocking Chromium.',
+      ],
     };
   } finally {
     try { await browser?.close(); } catch { /* ignore */ }
   }
+}
+
+function checkBrowserRuntimeGuidance() {
+  if (!isSnapConfinedShell()) return { pass: true, label: 'Browser runtime: direct host shell' };
+  return {
+    warn: true,
+    label: 'Snap-confined shell detected — prefer Docker for Playwright/PDF work',
+    fix: [
+      'This shell may not expose host Chromium libraries cleanly. That does not indicate a broken repo.',
+      'Default path here: `npm run pdf -- <input.html> <output.pdf> [--format=letter|a4] [--report=NNN]`.',
+    ],
+  };
 }
 
 // The browser tools (`browser_navigate` / `browser_snapshot`) that scan / pipeline /
@@ -328,7 +569,11 @@ async function main() {
   const checks = [
     checkNodeVersion(),
     checkDependencies(),
-    await checkPlaywright(),
+    checkPlaywrightDockerVersionSync(),
+    await checkPlaywrightInstalled(),
+    await checkPlaywrightSystemDeps(),
+    await checkPlaywrightLaunch(),
+    checkBrowserRuntimeGuidance(),
     checkPlaywrightMcp(projectRoot),
     checkScanExtractor(projectRoot),
     ...USER_LAYER_PREREQS.map(checkPrereq),

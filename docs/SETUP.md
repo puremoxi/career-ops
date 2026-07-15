@@ -60,12 +60,31 @@ Then open your AI CLI in the folder — the same first-run onboarding applies. U
 
 </details>
 
-### PDF rendering (one-time)
+### PDF rendering
+
+Preferred default, especially from Codex or snap-confined shells:
+
+```bash
+npm run pdf -- output/cv-example.html output/cv-example.pdf
+```
+
+That wrapper uses the repo's `docker-compose.yml` and writes the generated PDF
+back into your working tree. If Docker is unavailable, it falls back to the
+local Playwright runtime.
+
+### Local Playwright setup (fallback)
 
 PDFs are rendered with a headless Chromium. Install it once per machine:
 
 ```bash
 npx playwright install chromium
+```
+
+If you are running inside a snap-confined Codex shell, prefer the Docker-backed
+path instead of relying on local Chromium:
+
+```bash
+npm run pdf -- output/cv-example.html output/cv-example.pdf
 ```
 
 ## Available Commands

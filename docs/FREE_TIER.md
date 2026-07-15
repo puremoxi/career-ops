@@ -73,7 +73,7 @@ a rate-limit error; career-ops will pause and suggest retrying tomorrow.
 | Offer evaluation (A-F)  | ✅        | Full scoring pipeline            |
 | Report generation (.md) | ✅        | Markdown reports                 |
 | Portal scanning         | ✅        | Zero-token — hits APIs directly  |
-| PDF generation          | ✅        | Uses local Playwright, no tokens |
+| PDF generation          | ✅        | Uses Playwright locally or via the repo Docker runtime, no tokens |
 | Batch processing        | ⚠️        | Limited by daily quota           |
 
 ## Upgrading

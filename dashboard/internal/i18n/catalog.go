@@ -58,20 +58,6 @@ type Catalog struct {
 	WeeklyTitle     string
 	ActiveInfo      string
 
-	// Scan history screen
-	ScanHistoryTitle    string
-	ScanHistorySummary  string
-	ScanHistoryRunsInfo string
-	ColScanTime         string
-	ColScanCompanies    string
-	ColScanFound        string
-	ColScanNew          string
-	ColScanDupes        string
-	ColScanErrors       string
-	ColScanDuration     string
-	ScanDurationUnknown string
-	ScanStatusFailed    string
-
 	// Relative dates
 	TimeToday     string
 	TimeYesterday string
@@ -96,35 +82,34 @@ type Catalog struct {
 	RateOffer     string
 
 	// Footer descriptions & hints
-	HelpNav         string
-	HelpTabs        string
-	HelpSearch      string
-	HelpSort        string
-	HelpRefresh     string
-	HelpReport      string
-	HelpOpenURL     string
-	HelpOpenPDF     string
-	HelpRegenPDF    string
-	HelpChange      string
-	HelpColumns     string
-	HelpView        string
-	HelpProgress    string
-	HelpScanHistory string
-	HelpQuit        string
-	HelpScroll      string
-	HelpPage        string
-	HelpTopEnd      string
-	HelpLanguage    string
-	HelpManifesto   string
-	HelpBack        string
-	HelpNavigate    string
-	HelpToggle      string
-	HelpClose       string
-	HelpConfirm     string
-	HelpCancel      string
-	HelpFilterLive  string
-	HelpKeep        string
-	HelpClear       string
+	HelpNav        string
+	HelpTabs       string
+	HelpSearch     string
+	HelpSort       string
+	HelpRefresh    string
+	HelpReport     string
+	HelpOpenURL    string
+	HelpOpenPDF    string
+	HelpRegenPDF   string
+	HelpChange     string
+	HelpColumns    string
+	HelpView       string
+	HelpProgress   string
+	HelpQuit       string
+	HelpScroll     string
+	HelpPage       string
+	HelpTopEnd     string
+	HelpLanguage   string
+	HelpManifesto  string
+	HelpBack       string
+	HelpNavigate   string
+	HelpToggle     string
+	HelpClose      string
+	HelpConfirm    string
+	HelpCancel     string
+	HelpFilterLive string
+	HelpKeep       string
+	HelpClear      string
 
 	// Picker overlay titles & bar hints
 	PickerChangeStatus string
@@ -283,20 +268,6 @@ var En = Catalog{
 	WeeklyTitle:     "Weekly Activity",
 	ActiveInfo:      "%d active applications | %d total offers",
 
-	// Scan history screen
-	ScanHistoryTitle:    "SCAN HISTORY",
-	ScanHistorySummary:  "%d runs | avg %.1f found / %.1f new per run",
-	ScanHistoryRunsInfo: "Filters remove %.1f%% | avg duration %s",
-	ColScanTime:         "TIME",
-	ColScanCompanies:    "COMPANIES",
-	ColScanFound:        "FOUND",
-	ColScanNew:          "NEW",
-	ColScanDupes:        "DUPES",
-	ColScanErrors:       "ERRORS",
-	ColScanDuration:     "DURATION",
-	ScanDurationUnknown: "—",
-	ScanStatusFailed:    "failed",
-
 	// Relative dates
 	TimeToday:     "today",
 	TimeYesterday: "yesterday",
@@ -321,35 +292,34 @@ var En = Catalog{
 	RateOffer:     "Offer Rate: ",
 
 	// Footer descriptions & hints
-	HelpNav:         " nav  ",
-	HelpTabs:        " tabs  ",
-	HelpSearch:      " search  ",
-	HelpSort:        " sort  ",
-	HelpRefresh:     " refresh  ",
-	HelpReport:      " report  ",
-	HelpOpenURL:     " open URL  ",
-	HelpOpenPDF:     " open PDF  ",
-	HelpRegenPDF:    " regen PDF  ",
-	HelpChange:      " change  ",
-	HelpColumns:     " columns  ",
-	HelpView:        " view  ",
-	HelpProgress:    " progress  ",
-	HelpScanHistory: " scan history  ",
-	HelpQuit:        " quit",
-	HelpScroll:      " scroll  ",
-	HelpPage:        " page  ",
-	HelpTopEnd:      " top/end  ",
-	HelpLanguage:    " lang  ",
-	HelpManifesto:   " manifesto  ",
-	HelpBack:        " back",
-	HelpNavigate:    " navigate  ",
-	HelpToggle:      " toggle  ",
-	HelpClose:       " close",
-	HelpConfirm:     " confirm  ",
-	HelpCancel:      " cancel",
-	HelpFilterLive:  " filter live  ",
-	HelpKeep:        " keep  ",
-	HelpClear:       " clear  ",
+	HelpNav:        " nav  ",
+	HelpTabs:       " tabs  ",
+	HelpSearch:     " search  ",
+	HelpSort:       " sort  ",
+	HelpRefresh:    " refresh  ",
+	HelpReport:     " report  ",
+	HelpOpenURL:    " open URL  ",
+	HelpOpenPDF:    " open PDF  ",
+	HelpRegenPDF:   " regen PDF  ",
+	HelpChange:     " change  ",
+	HelpColumns:    " columns  ",
+	HelpView:       " view  ",
+	HelpProgress:   " progress  ",
+	HelpQuit:       " quit",
+	HelpScroll:     " scroll  ",
+	HelpPage:       " page  ",
+	HelpTopEnd:     " top/end  ",
+	HelpLanguage:   " lang  ",
+	HelpManifesto:  " manifesto  ",
+	HelpBack:       " back",
+	HelpNavigate:   " navigate  ",
+	HelpToggle:     " toggle  ",
+	HelpClose:      " close",
+	HelpConfirm:    " confirm  ",
+	HelpCancel:     " cancel",
+	HelpFilterLive: " filter live  ",
+	HelpKeep:       " keep  ",
+	HelpClear:      " clear  ",
 
 	// Picker overlay titles & bar hints
 	PickerChangeStatus: "Change status:",
@@ -425,20 +395,6 @@ var Tr = Catalog{
 	WeeklyTitle:     "Haftalık Aktivite",
 	ActiveInfo:      "%d aktif başvuru | %d toplam teklif",
 
-	// Scan history screen
-	ScanHistoryTitle:    "TARAMA GEÇMİŞİ",
-	ScanHistorySummary:  "%d tarama | ort. %.1f bulunan / %.1f yeni",
-	ScanHistoryRunsInfo: "Filtreler %%%.1f kaldırıyor | ort. süre %s",
-	ColScanTime:         "ZAMAN",
-	ColScanCompanies:    "ŞİRKET",
-	ColScanFound:        "BULUNAN",
-	ColScanNew:          "YENİ",
-	ColScanDupes:        "TEKRAR",
-	ColScanErrors:       "HATA",
-	ColScanDuration:     "SÜRE",
-	ScanDurationUnknown: "—",
-	ScanStatusFailed:    "başarısız",
-
 	// Relative dates
 	TimeToday:     "bugün",
 	TimeYesterday: "dün",
@@ -463,35 +419,34 @@ var Tr = Catalog{
 	RateOffer:     "Teklif Oranı: ",
 
 	// Footer descriptions & hints
-	HelpNav:         " gezin  ",
-	HelpTabs:        " sekmeler  ",
-	HelpSearch:      " ara  ",
-	HelpSort:        " sırala  ",
-	HelpRefresh:     " yenile  ",
-	HelpReport:      " rapor  ",
-	HelpOpenURL:     " URL aç  ",
-	HelpOpenPDF:     " PDF'i aç  ",
-	HelpRegenPDF:    " PDF üret  ",
-	HelpChange:      " durum  ",
-	HelpColumns:     " sütunlar  ",
-	HelpView:        " görünüm  ",
-	HelpProgress:    " ilerleme  ",
-	HelpScanHistory: " tarama geçmişi  ",
-	HelpQuit:        " çıkış",
-	HelpScroll:      " kaydır  ",
-	HelpPage:        " sayfa  ",
-	HelpTopEnd:      " baş/son  ",
-	HelpLanguage:    " dil  ",
-	HelpManifesto:   " manifesto  ",
-	HelpBack:        " geri",
-	HelpNavigate:    " gezin  ",
-	HelpToggle:      " değiştir  ",
-	HelpClose:       " kapat",
-	HelpConfirm:     " onayla  ",
-	HelpCancel:      " iptal",
-	HelpFilterLive:  " canlı filtrele  ",
-	HelpKeep:        " kaydet  ",
-	HelpClear:       " temizle  ",
+	HelpNav:        " gezin  ",
+	HelpTabs:       " sekmeler  ",
+	HelpSearch:     " ara  ",
+	HelpSort:       " sırala  ",
+	HelpRefresh:    " yenile  ",
+	HelpReport:     " rapor  ",
+	HelpOpenURL:    " URL aç  ",
+	HelpOpenPDF:    " PDF'i aç  ",
+	HelpRegenPDF:   " PDF üret  ",
+	HelpChange:     " durum  ",
+	HelpColumns:    " sütunlar  ",
+	HelpView:       " görünüm  ",
+	HelpProgress:   " ilerleme  ",
+	HelpQuit:       " çıkış",
+	HelpScroll:     " kaydır  ",
+	HelpPage:       " sayfa  ",
+	HelpTopEnd:     " baş/son  ",
+	HelpLanguage:   " dil  ",
+	HelpManifesto:  " manifesto  ",
+	HelpBack:       " geri",
+	HelpNavigate:   " gezin  ",
+	HelpToggle:     " değiştir  ",
+	HelpClose:      " kapat",
+	HelpConfirm:    " onayla  ",
+	HelpCancel:     " iptal",
+	HelpFilterLive: " canlı filtrele  ",
+	HelpKeep:       " kaydet  ",
+	HelpClear:      " temizle  ",
 
 	// Picker overlay titles & bar hints
 	PickerChangeStatus: "Durumu değiştir:",
@@ -567,20 +522,6 @@ var Es = Catalog{
 	WeeklyTitle:     "Actividad semanal",
 	ActiveInfo:      "%d solicitudes activas | %d ofertas totales",
 
-	// Scan history screen
-	ScanHistoryTitle:    "HISTORIAL DE ESCANEOS",
-	ScanHistorySummary:  "%d escaneos | prom. %.1f encontradas / %.1f nuevas",
-	ScanHistoryRunsInfo: "Los filtros eliminan %.1f%% | duración prom. %s",
-	ColScanTime:         "HORA",
-	ColScanCompanies:    "EMPRESAS",
-	ColScanFound:        "ENCONTRADAS",
-	ColScanNew:          "NUEVAS",
-	ColScanDupes:        "DUPLIC.",
-	ColScanErrors:       "ERRORES",
-	ColScanDuration:     "DURACIÓN",
-	ScanDurationUnknown: "—",
-	ScanStatusFailed:    "fallido",
-
 	// Relative dates
 	TimeToday:     "hoy",
 	TimeYesterday: "ayer",
@@ -605,35 +546,34 @@ var Es = Catalog{
 	RateOffer:     "Tasa de ofertas: ",
 
 	// Footer descriptions & hints
-	HelpNav:         " navegar  ",
-	HelpTabs:        " pestañas  ",
-	HelpSearch:      " buscar  ",
-	HelpSort:        " ordenar  ",
-	HelpRefresh:     " actualizar  ",
-	HelpReport:      " informe  ",
-	HelpOpenURL:     " abrir URL  ",
-	HelpOpenPDF:     " abrir PDF  ",
-	HelpRegenPDF:    " regenerar PDF  ",
-	HelpChange:      " cambiar  ",
-	HelpColumns:     " columnas  ",
-	HelpView:        " vista  ",
-	HelpProgress:    " progreso  ",
-	HelpScanHistory: " historial de escaneos  ",
-	HelpQuit:        " salir",
-	HelpScroll:      " desplazar  ",
-	HelpPage:        " página  ",
-	HelpTopEnd:      " inicio/fin  ",
-	HelpLanguage:    " idioma  ",
-	HelpManifesto:   " manifiesto  ",
-	HelpBack:        " atrás",
-	HelpNavigate:    " navegar  ",
-	HelpToggle:      " alternar  ",
-	HelpClose:       " cerrar",
-	HelpConfirm:     " confirmar  ",
-	HelpCancel:      " cancelar",
-	HelpFilterLive:  " filtrar en vivo  ",
-	HelpKeep:        " guardar  ",
-	HelpClear:       " limpiar  ",
+	HelpNav:        " navegar  ",
+	HelpTabs:       " pestañas  ",
+	HelpSearch:     " buscar  ",
+	HelpSort:       " ordenar  ",
+	HelpRefresh:    " actualizar  ",
+	HelpReport:     " informe  ",
+	HelpOpenURL:    " abrir URL  ",
+	HelpOpenPDF:    " abrir PDF  ",
+	HelpRegenPDF:   " regenerar PDF  ",
+	HelpChange:     " cambiar  ",
+	HelpColumns:    " columnas  ",
+	HelpView:       " vista  ",
+	HelpProgress:   " progreso  ",
+	HelpQuit:       " salir",
+	HelpScroll:     " desplazar  ",
+	HelpPage:       " página  ",
+	HelpTopEnd:     " inicio/fin  ",
+	HelpLanguage:   " idioma  ",
+	HelpManifesto:  " manifiesto  ",
+	HelpBack:       " atrás",
+	HelpNavigate:   " navegar  ",
+	HelpToggle:     " alternar  ",
+	HelpClose:      " cerrar",
+	HelpConfirm:    " confirmar  ",
+	HelpCancel:     " cancelar",
+	HelpFilterLive: " filtrar en vivo  ",
+	HelpKeep:       " guardar  ",
+	HelpClear:      " limpiar  ",
 
 	// Picker overlay titles & bar hints
 	PickerChangeStatus: "Cambiar estado:",

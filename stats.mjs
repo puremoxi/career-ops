@@ -33,16 +33,18 @@ const SCAN_RUNS_FILE = join(ROOT, 'data', 'scan-runs.tsv');
 const PORTALS_FILE = join(ROOT, 'portals.yml');
 const PORTAL_HEALTH_FILE = join(ROOT, 'data', 'portal-health.tsv');
 
-const CANONICAL_STATUSES = ['Evaluated', 'Applied', 'Responded', 'Interview', 'Offer', 'Rejected', 'Discarded', 'SKIP'];
+const CANONICAL_STATUSES = ['Evaluated', 'Applied', 'Responded', 'Interview', 'Offer', 'Hired', 'Rejected', 'Discarded', 'SKIP'];
 
 // In-flight applications. Deliberately NARROWER than the dashboard's
 // ActiveApps (which also counts Evaluated): an evaluated-but-never-sent row is
-// a candidate, not an application in flight.
+// a candidate, not an application in flight. Hired is a terminal success, not
+// in flight, so it is intentionally excluded here (but see PURSUED/funnel).
 const ACTIVE_STATUSES = new Set(['Applied', 'Responded', 'Interview', 'Offer']);
 
 // Rows that count toward avgScoreApplied — jobs the user actually pursued.
-// Plain avgScore mixes in SKIP/Discarded and understates real fit.
-const PURSUED_STATUSES = new Set(['Applied', 'Responded', 'Interview', 'Offer', 'Rejected']);
+// Plain avgScore mixes in SKIP/Discarded and understates real fit. Hired is
+// the fullest pursuit of all, so it belongs here.
+const PURSUED_STATUSES = new Set(['Applied', 'Responded', 'Interview', 'Offer', 'Hired', 'Rejected']);
 
 const round1 = (n) => Math.round(n * 10) / 10;
 const pct = (part, total) => (total > 0 ? round1((part / total) * 100) : 0);
@@ -116,8 +118,10 @@ export function trackerStatusByNum(content) {
 /**
  * Cumulative funnel: everX = "reached stage X or beyond, ever". The math
  * mirrors the dashboard's ComputeProgressMetrics (career.go): Rejected counts
- * into everApplied (a rejection proves a submission), and each later stage
- * sums itself plus everything beyond it. Rates are relative to everApplied.
+ * into everApplied (a rejection proves a submission), Hired counts into every
+ * stage through everOffer (a landed job proves the offer and everything before
+ * it), and each later stage sums itself plus everything beyond it. Rates are
+ * relative to everApplied.
  *
  * Keys are deliberately NOT bare status names — `tracker.byStatus.Applied` is
  * "currently in Applied" while `everApplied` is "ever applied"; the same word
@@ -133,10 +137,10 @@ export function trackerStatusByNum(content) {
  */
 export function computeFunnel(byStatus) {
   const n = (k) => byStatus[k] || 0;
-  const everApplied = n('Applied') + n('Responded') + n('Interview') + n('Offer') + n('Rejected');
-  const everResponded = n('Responded') + n('Interview') + n('Offer');
-  const everInterview = n('Interview') + n('Offer');
-  const everOffer = n('Offer');
+  const everApplied = n('Applied') + n('Responded') + n('Interview') + n('Offer') + n('Hired') + n('Rejected');
+  const everResponded = n('Responded') + n('Interview') + n('Offer') + n('Hired');
+  const everInterview = n('Interview') + n('Offer') + n('Hired');
+  const everOffer = n('Offer') + n('Hired');
   return {
     everApplied,
     everResponded,
@@ -262,10 +266,12 @@ export function computePortalStats(portalsYmlContent, scanStats, producingCompan
     }
     const streaks = new Map();
     for (const r of healthRecords) {
-      if (r.status === 'slug_gone' || r.status === 'network') {
-        streaks.set(r.company, (streaks.get(r.company) || 0) + 1);
-      } else if (r.status === 'reachable' || r.status === 'empty') {
+      // Mirrors scan.mjs computeConsecutiveFailures: healthy statuses reset,
+      // every other status (slug_gone/network/auth/server/unknown) counts.
+      if (r.status === 'reachable' || r.status === 'empty') {
         streaks.set(r.company, 0);
+      } else {
+        streaks.set(r.company, (streaks.get(r.company) || 0) + 1);
       }
     }
     const threshold = cfg.portal_health_threshold || 3;

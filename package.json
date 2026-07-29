@@ -1,8 +1,11 @@
 {
   "name": "career-ops",
-  "version": "1.21.0",
-  "description": "AI-powered job search pipeline — works with any AI coding CLI (Claude Code, OpenCode, Gemini, Codex, Qwen)",
+  "version": "1.23.0",
+  "description": "AI-powered job search pipeline — works with any AI coding CLI (Claude Code, Codex, OpenCode, Antigravity, Grok, Qwen, Kimi, Copilot)",
   "private": true,
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "doctor": "node doctor.mjs",
     "or": "node openrouter-runner.mjs",
@@ -61,7 +64,14 @@
     "career",
     "career-ops",
     "careerops",
-    "automation"
+    "automation",
+    "codex",
+    "antigravity",
+    "qwen",
+    "kimi",
+    "copilot",
+    "grok",
+    "ai-agent-skill"
   ],
   "author": "Santiago Fernández de Valderrama <hi@santifer.io> (https://santifer.io)",
   "homepage": "https://santifer.io",
@@ -74,6 +84,6 @@
     "@google/generative-ai": "^0.24.1",
     "dotenv": "^17.0.0",
     "js-yaml": "^4.1.1",
-    "playwright": "1.61.1"
+    "playwright": "1.62.0"
   }
 }

@@ -28,14 +28,15 @@ type Catalog struct {
 	TabDiscarded string
 
 	// Table column headers
-	ColFit      string
-	ColApplied  string
-	ColCompany  string
-	ColRole     string
-	ColStatus   string
-	ColLocation string
-	ColPay      string
-	ColLast     string
+	ColFit           string
+	ColApplied       string
+	ColCompany       string
+	ColRole          string
+	ColStatus        string
+	ColLocation      string
+	ColPay           string
+	ColLast          string
+	ColCompanyHealth string
 
 	// Preview labels
 	LabelLoc     string
@@ -58,6 +59,50 @@ type Catalog struct {
 	RatesTitle      string
 	WeeklyTitle     string
 	ActiveInfo      string
+
+	// Scan effectiveness screen
+	ScanStatsTitle             string
+	ScanStatsSummary           string
+	ScanRunsTrendTitle         string
+	ScanRunsAverages           string
+	ScanRunsColDate            string
+	ScanRunsColCompanies       string
+	ScanRunsColCompaniesConfig string
+	ScanRunsColBoards          string
+	ScanRunsColFound           string
+	ScanRunsColNew             string
+	ScanRunsColErrors          string
+	ScanRunsColDuration        string
+	ScanRunsColReachable       string
+	ScanRunsColEmpty           string
+	ScanRunsColErrored         string
+	ScanCoverageZeroToken      string
+	ScanCoverageAgent          string
+	ScanCoverageLine           string
+	ScanHealthTitle            string
+	ScanHealthDeadTitle        string
+	ScanHealthDeadNone         string
+	ScanJobFunnelTitle         string
+	ScanJobFunnelFound         string
+	ScanJobFunnelFiltered      string
+	ScanJobFunnelDupes         string
+	ScanJobFunnelAdded         string
+	ScanFunnelTitle            string
+	ScanFunnelAdded            string
+	ScanFunnelTitleFiltered    string
+	ScanFunnelDup              string
+	ScanFunnelExpired          string
+	ScanZeroYieldLine          string
+	ScanTopPortalsTitle        string
+	ScanTopPortalsColPortal    string
+	ScanTopPortalsColProfile   string
+	ScanTopPortalsColHits      string
+	ScanTopPortalsColRate      string
+	ScanProfileAPIBoard        string
+	ScanProfileUnknown         string
+	ScanTopCompaniesTitle      string
+	ScanTopCompaniesColCompany string
+	ScanTopCompaniesColHits    string
 
 	// Relative dates
 	TimeToday     string
@@ -96,6 +141,7 @@ type Catalog struct {
 	HelpColumns    string
 	HelpView       string
 	HelpProgress   string
+	HelpScanStats  string
 	HelpQuit       string
 	HelpScroll     string
 	HelpPage       string
@@ -128,6 +174,7 @@ type Catalog struct {
 	SortScore    string
 	SortDate     string
 	SortCompany  string
+	SortRole     string
 	SortStatus   string
 	SortLocation string
 	SortPay      string
@@ -145,6 +192,8 @@ func (c *Catalog) SortModeLabel(mode string) string {
 		return c.SortDate
 	case "company":
 		return c.SortCompany
+	case "role":
+		return c.SortRole
 	case "status":
 		return c.SortStatus
 	case "location":
@@ -239,14 +288,15 @@ var En = Catalog{
 	TabDiscarded: "DISCARDED",
 
 	// Table column headers
-	ColFit:      "FIT",
-	ColApplied:  "APPLIED",
-	ColCompany:  "COMPANY",
-	ColRole:     "ROLE",
-	ColStatus:   "STATUS",
-	ColLocation: "LOCATION",
-	ColPay:      "PAY",
-	ColLast:     "LAST",
+	ColFit:           "FIT",
+	ColApplied:       "APPLIED",
+	ColCompany:       "COMPANY",
+	ColRole:          "ROLE",
+	ColStatus:        "STATUS",
+	ColLocation:      "LOCATION",
+	ColPay:           "PAY",
+	ColLast:          "LAST",
+	ColCompanyHealth: "HEALTH",
 
 	// Preview labels
 	LabelLoc:     "Loc: ",
@@ -269,6 +319,50 @@ var En = Catalog{
 	RatesTitle:      "Conversion Rates",
 	WeeklyTitle:     "Weekly Activity",
 	ActiveInfo:      "%d active applications | %d total offers",
+
+	// Scan effectiveness screen
+	ScanStatsTitle:             "SCAN EFFECTIVENESS",
+	ScanStatsSummary:           "%d runs | %d added | %d/%d companies matched",
+	ScanRunsTrendTitle:         "Scan Runs",
+	ScanRunsAverages:           "avg %.1f found / %.1f new per run | %d failed",
+	ScanRunsColDate:            "Date",
+	ScanRunsColCompanies:       "Coverage (0-token/agent)",
+	ScanRunsColCompaniesConfig: "Companies (tracked)",
+	ScanRunsColBoards:          "Boards (job-board queries)",
+	ScanRunsColFound:           "Found",
+	ScanRunsColNew:             "New",
+	ScanRunsColErrors:          "Errors",
+	ScanRunsColDuration:        "Duration",
+	ScanRunsColReachable:       "Reachable",
+	ScanRunsColEmpty:           "Empty",
+	ScanRunsColErrored:         "Errored (%)",
+	ScanCoverageZeroToken:      "0-token",
+	ScanCoverageAgent:          "agent",
+	ScanCoverageLine:           "portals.yml: %d tracked companies (%d enabled, %d disabled) | %d job-board queries (%d enabled, %d disabled)",
+	ScanHealthTitle:            "Portal/Company Reachability (latest run)",
+	ScanHealthDeadTitle:        "Persistently dead (3+ runs) — prune or fix:",
+	ScanHealthDeadNone:         "None — no persistently dead portals",
+	ScanJobFunnelTitle:         "All-Time Job Funnel (raw impressions, cumulative across runs)",
+	ScanJobFunnelFound:         "Found",
+	ScanJobFunnelFiltered:      "Filtered out",
+	ScanJobFunnelDupes:         "Duplicates",
+	ScanJobFunnelAdded:         "New added",
+	ScanFunnelTitle:            "Unique Postings — All-Time Outcome",
+	ScanFunnelAdded:            "Added",
+	ScanFunnelTitleFiltered:    "Title-filtered",
+	ScanFunnelDup:              "Duplicate",
+	ScanFunnelExpired:          "Expired",
+	ScanZeroYieldLine:          "%d/%d scanned companies have never produced a match (%.0f%%) — candidates for pruning",
+	ScanTopPortalsTitle:        "Top Portals",
+	ScanTopPortalsColPortal:    "Portal",
+	ScanTopPortalsColProfile:   "Job Profile in Search",
+	ScanTopPortalsColHits:      "Hit Rate",
+	ScanTopPortalsColRate:      "%",
+	ScanProfileAPIBoard:        "(company board — filtered by title_filter)",
+	ScanProfileUnknown:         "—",
+	ScanTopCompaniesTitle:      "Top Companies",
+	ScanTopCompaniesColCompany: "Company",
+	ScanTopCompaniesColHits:    "Hits",
 
 	// Relative dates
 	TimeToday:     "today",
@@ -307,6 +401,7 @@ var En = Catalog{
 	HelpColumns:    " columns  ",
 	HelpView:       " view  ",
 	HelpProgress:   " progress  ",
+	HelpScanStats:  " scan stats  ",
 	HelpQuit:       " quit",
 	HelpScroll:     " scroll  ",
 	HelpPage:       " page  ",
@@ -339,6 +434,7 @@ var En = Catalog{
 	SortScore:    "score",
 	SortDate:     "date",
 	SortCompany:  "company",
+	SortRole:     "role",
 	SortStatus:   "status",
 	SortLocation: "location",
 	SortPay:      "pay",
@@ -367,14 +463,15 @@ var Tr = Catalog{
 	TabDiscarded: "İPTAL",
 
 	// Table column headers
-	ColFit:      "UYUM",
-	ColApplied:  "TARİH",
-	ColCompany:  "ŞİRKET",
-	ColRole:     "POZİSYON",
-	ColStatus:   "DURUM",
-	ColLocation: "KONUM",
-	ColPay:      "ÜCRET",
-	ColLast:     "SON",
+	ColFit:           "UYUM",
+	ColApplied:       "TARİH",
+	ColCompany:       "ŞİRKET",
+	ColRole:          "POZİSYON",
+	ColStatus:        "DURUM",
+	ColLocation:      "KONUM",
+	ColPay:           "ÜCRET",
+	ColLast:          "SON",
+	ColCompanyHealth: "SAĞLIK",
 
 	// Preview labels
 	LabelLoc:     "Konum: ",
@@ -397,6 +494,50 @@ var Tr = Catalog{
 	RatesTitle:      "Dönüşüm Oranları",
 	WeeklyTitle:     "Haftalık Aktivite",
 	ActiveInfo:      "%d aktif başvuru | %d toplam teklif",
+
+	// Scan effectiveness screen
+	ScanStatsTitle:             "TARAMA ETKİNLİĞİ",
+	ScanStatsSummary:           "%d tarama | %d eklendi | %d/%d şirket eşleşti",
+	ScanRunsTrendTitle:         "Taramalar",
+	ScanRunsAverages:           "ort. %.1f bulunan / %.1f yeni per tarama | %d başarısız",
+	ScanRunsColDate:            "Tarih",
+	ScanRunsColCompanies:       "Kapsam (0-token/ajan)",
+	ScanRunsColCompaniesConfig: "Şirket (takip edilen)",
+	ScanRunsColBoards:          "Pano (iş panosu sorguları)",
+	ScanRunsColFound:           "Bulunan",
+	ScanRunsColNew:             "Yeni",
+	ScanRunsColErrors:          "Hata",
+	ScanRunsColDuration:        "Süre",
+	ScanRunsColReachable:       "Erişilebilir",
+	ScanRunsColEmpty:           "Boş",
+	ScanRunsColErrored:         "Hatalı (%)",
+	ScanCoverageZeroToken:      "0-token",
+	ScanCoverageAgent:          "ajan",
+	ScanCoverageLine:           "portals.yml: %d takip edilen şirket (%d etkin, %d devre dışı) | %d iş panosu sorgusu (%d etkin, %d devre dışı)",
+	ScanHealthTitle:            "Portal/Şirket Erişilebilirliği (son tarama)",
+	ScanHealthDeadTitle:        "Kalıcı olarak ölü (3+ tarama) — budayın veya düzeltin:",
+	ScanHealthDeadNone:         "Yok — kalıcı olarak ölü portal yok",
+	ScanJobFunnelTitle:         "Tüm Zamanlar İş Hunisi (ham gösterimler, taramalar arasında birikimli)",
+	ScanJobFunnelFound:         "Bulunan",
+	ScanJobFunnelFiltered:      "Filtrelenen",
+	ScanJobFunnelDupes:         "Tekrarlar",
+	ScanJobFunnelAdded:         "Yeni eklendi",
+	ScanFunnelTitle:            "Benzersiz İlanlar — Tüm Zamanlar Sonucu",
+	ScanFunnelAdded:            "Eklendi",
+	ScanFunnelTitleFiltered:    "Başlıkla filtrelendi",
+	ScanFunnelDup:              "Tekrar",
+	ScanFunnelExpired:          "Süresi doldu",
+	ScanZeroYieldLine:          "%d/%d taranan şirket hiç eşleşme üretmedi (%.0f%%) — budama adayları",
+	ScanTopPortalsTitle:        "En İyi Portallar",
+	ScanTopPortalsColPortal:    "Portal",
+	ScanTopPortalsColProfile:   "Aramadaki İş Profili",
+	ScanTopPortalsColHits:      "İsabet Oranı",
+	ScanTopPortalsColRate:      "%",
+	ScanProfileAPIBoard:        "(şirket panosu — title_filter ile filtrelendi)",
+	ScanProfileUnknown:         "—",
+	ScanTopCompaniesTitle:      "En İyi Şirketler",
+	ScanTopCompaniesColCompany: "Şirket",
+	ScanTopCompaniesColHits:    "İsabet",
 
 	// Relative dates
 	TimeToday:     "bugün",
@@ -435,6 +576,7 @@ var Tr = Catalog{
 	HelpColumns:    " sütunlar  ",
 	HelpView:       " görünüm  ",
 	HelpProgress:   " ilerleme  ",
+	HelpScanStats:  " tarama  ",
 	HelpQuit:       " çıkış",
 	HelpScroll:     " kaydır  ",
 	HelpPage:       " sayfa  ",
@@ -467,6 +609,7 @@ var Tr = Catalog{
 	SortScore:    "puan",
 	SortDate:     "tarih",
 	SortCompany:  "şirket",
+	SortRole:     "pozisyon",
 	SortStatus:   "durum",
 	SortLocation: "konum",
 	SortPay:      "ücret",
@@ -495,14 +638,15 @@ var Es = Catalog{
 	TabDiscarded: "DESCARTADAS",
 
 	// Table column headers
-	ColFit:      "AJUSTE",
-	ColApplied:  "APLICADA",
-	ColCompany:  "EMPRESA",
-	ColRole:     "PUESTO",
-	ColStatus:   "ESTADO",
-	ColLocation: "UBICACIÓN",
-	ColPay:      "SALARIO",
-	ColLast:     "ÚLTIMO",
+	ColFit:           "AJUSTE",
+	ColApplied:       "APLICADA",
+	ColCompany:       "EMPRESA",
+	ColRole:          "PUESTO",
+	ColStatus:        "ESTADO",
+	ColLocation:      "UBICACIÓN",
+	ColPay:           "SALARIO",
+	ColLast:          "ÚLTIMO",
+	ColCompanyHealth: "SALUD",
 
 	// Preview labels
 	LabelLoc:     "Ubic: ",
@@ -525,6 +669,50 @@ var Es = Catalog{
 	RatesTitle:      "Tasas de conversión",
 	WeeklyTitle:     "Actividad semanal",
 	ActiveInfo:      "%d solicitudes activas | %d ofertas totales",
+
+	// Scan effectiveness screen
+	ScanStatsTitle:             "EFECTIVIDAD DE ESCANEO",
+	ScanStatsSummary:           "%d escaneos | %d añadidos | %d/%d empresas con coincidencia",
+	ScanRunsTrendTitle:         "Escaneos",
+	ScanRunsAverages:           "prom. %.1f encontrados / %.1f nuevos por escaneo | %d fallidos",
+	ScanRunsColDate:            "Fecha",
+	ScanRunsColCompanies:       "Cobertura (0-token/agente)",
+	ScanRunsColCompaniesConfig: "Empresas (rastreadas)",
+	ScanRunsColBoards:          "Tableros (consultas de tablero)",
+	ScanRunsColFound:           "Encontrados",
+	ScanRunsColNew:             "Nuevos",
+	ScanRunsColErrors:          "Errores",
+	ScanRunsColDuration:        "Duración",
+	ScanRunsColReachable:       "Accesibles",
+	ScanRunsColEmpty:           "Vacías",
+	ScanRunsColErrored:         "Con error (%)",
+	ScanCoverageZeroToken:      "0-token",
+	ScanCoverageAgent:          "agente",
+	ScanCoverageLine:           "portals.yml: %d empresas rastreadas (%d activas, %d desactivadas) | %d consultas de tableros de empleo (%d activas, %d desactivadas)",
+	ScanHealthTitle:            "Accesibilidad de Portales/Empresas (último escaneo)",
+	ScanHealthDeadTitle:        "Persistentemente caídas (3+ escaneos) — podar o corregir:",
+	ScanHealthDeadNone:         "Ninguna — no hay portales persistentemente caídos",
+	ScanJobFunnelTitle:         "Embudo de Empleos Histórico (impresiones brutas, acumulado entre escaneos)",
+	ScanJobFunnelFound:         "Encontrados",
+	ScanJobFunnelFiltered:      "Filtrados",
+	ScanJobFunnelDupes:         "Duplicados",
+	ScanJobFunnelAdded:         "Nuevos añadidos",
+	ScanFunnelTitle:            "Publicaciones Únicas — Resultado Histórico",
+	ScanFunnelAdded:            "Añadido",
+	ScanFunnelTitleFiltered:    "Filtrado por título",
+	ScanFunnelDup:              "Duplicado",
+	ScanFunnelExpired:          "Expirado",
+	ScanZeroYieldLine:          "%d/%d empresas escaneadas nunca produjeron una coincidencia (%.0f%%) — candidatas a poda",
+	ScanTopPortalsTitle:        "Mejores Portales",
+	ScanTopPortalsColPortal:    "Portal",
+	ScanTopPortalsColProfile:   "Perfil de Trabajo en Búsqueda",
+	ScanTopPortalsColHits:      "Tasa de Aciertos",
+	ScanTopPortalsColRate:      "%",
+	ScanProfileAPIBoard:        "(tablero de empresa — filtrado por title_filter)",
+	ScanProfileUnknown:         "—",
+	ScanTopCompaniesTitle:      "Mejores Empresas",
+	ScanTopCompaniesColCompany: "Empresa",
+	ScanTopCompaniesColHits:    "Aciertos",
 
 	// Relative dates
 	TimeToday:     "hoy",
@@ -563,6 +751,7 @@ var Es = Catalog{
 	HelpColumns:    " columnas  ",
 	HelpView:       " vista  ",
 	HelpProgress:   " progreso  ",
+	HelpScanStats:  " escaneo  ",
 	HelpQuit:       " salir",
 	HelpScroll:     " desplazar  ",
 	HelpPage:       " página  ",
@@ -595,6 +784,7 @@ var Es = Catalog{
 	SortScore:    "puntuación",
 	SortDate:     "fecha",
 	SortCompany:  "empresa",
+	SortRole:     "puesto",
 	SortStatus:   "estado",
 	SortLocation: "ubicación",
 	SortPay:      "salario",

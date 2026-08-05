@@ -82,6 +82,75 @@ func TestParseScanRunsOldSchemaBackwardCompat(t *testing.T) {
 	}
 }
 
+// TestParseScanRunsAgentHandoffColumn exercises the current 21-column schema
+// (post agent_handoff_companies), including backward compat with a row that
+// predates the column.
+func TestParseScanRunsAgentHandoffColumn(t *testing.T) {
+	root := t.TempDir()
+	writeFixture(t, root, "data/scan-runs.tsv",
+		"timestamp\tstatus\tcompanies\tboards\tfound\tfiltered_title\tfiltered_tier\tfiltered_location\tfiltered_posting_age\tfiltered_salary\tfiltered_content\tfiltered_cooldown\tdupes\tnew_added\terrors\tfiltered_blacklist\tfiltered_visa\tfiltered_posted_date\tfiltered_country_eligibility\tduration_ms\tagent_handoff_companies\n"+
+			// Old row predating the column — trailing cells simply absent.
+			"2026-07-27T17:02:29.511Z\tcompleted\t121\t0\t12727\t12703\t0\t0\t0\t0\t0\t0\t24\t0\t11\t0\n"+
+			// New row with the full schema, including a real agent-handoff count.
+			"2026-08-03T17:49:20.500Z\tcompleted\t1\t0\t397\t397\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t253\t89\n")
+
+	metrics := ParseScanRuns(root)
+	if len(metrics.Runs) != 2 {
+		t.Fatalf("expected 2 runs, got %d", len(metrics.Runs))
+	}
+
+	// Newest first.
+	newest := metrics.Runs[0]
+	if !newest.HasAgentHandoffData() {
+		t.Fatal("expected newest row to have known agent-handoff data")
+	}
+	if newest.AgentHandoffCompanies != 89 {
+		t.Fatalf("expected AgentHandoffCompanies=89, got %d", newest.AgentHandoffCompanies)
+	}
+
+	oldest := metrics.Runs[1]
+	if oldest.HasAgentHandoffData() {
+		t.Fatal("expected old-schema row to report unknown agent-handoff data, not a false 0")
+	}
+}
+
+// TestParseScanRunsFunnelSums exercises the cumulative run-level funnel
+// (TotalFound/TotalFilteredAll/TotalDupes/TotalNewAdded/FilterRemovalPct),
+// confirming a failed run is excluded from the sums same as from the averages.
+func TestParseScanRunsFunnelSums(t *testing.T) {
+	root := t.TempDir()
+	writeFixture(t, root, "data/scan-runs.tsv",
+		"timestamp\tstatus\tcompanies\tboards\tfound\tfiltered_title\tfiltered_tier\tfiltered_location\tfiltered_posting_age\tfiltered_salary\tfiltered_content\tfiltered_cooldown\tdupes\tnew_added\terrors\tfiltered_blacklist\n"+
+			"2026-07-13T23:07:19.145Z\tcompleted\t113\t0\t1000\t900\t10\t5\t0\t0\t0\t0\t20\t6\t15\t5\n"+
+			"2026-07-15T18:58:12.710Z\tcompleted\t121\t0\t2000\t1800\t0\t0\t0\t0\t0\t0\t30\t0\t11\t0\n"+
+			"2026-07-16T09:00:00.000Z\tfailed\t500\t0\t5000\t5000\t0\t0\t0\t0\t0\t0\t0\t0\t1\t0\n")
+
+	metrics := ParseScanRuns(root)
+
+	// Failed run's 5000 found / 5000 filtered must NOT be folded in.
+	wantFound := 1000 + 2000
+	wantFiltered := (900 + 10 + 5 + 5) + 1800
+	wantDupes := 20 + 30
+	wantNew := 6 + 0
+
+	if metrics.TotalFound != wantFound {
+		t.Errorf("expected TotalFound=%d, got %d", wantFound, metrics.TotalFound)
+	}
+	if metrics.TotalFilteredAll != wantFiltered {
+		t.Errorf("expected TotalFilteredAll=%d, got %d", wantFiltered, metrics.TotalFilteredAll)
+	}
+	if metrics.TotalDupes != wantDupes {
+		t.Errorf("expected TotalDupes=%d, got %d", wantDupes, metrics.TotalDupes)
+	}
+	if metrics.TotalNewAdded != wantNew {
+		t.Errorf("expected TotalNewAdded=%d, got %d", wantNew, metrics.TotalNewAdded)
+	}
+	wantPct := float64(wantFiltered) / float64(wantFound) * 100
+	if diff := metrics.FilterRemovalPct - wantPct; diff > 0.001 || diff < -0.001 {
+		t.Errorf("expected FilterRemovalPct=%.4f, got %.4f", wantPct, metrics.FilterRemovalPct)
+	}
+}
+
 func TestParseScanRunsTornRowSkipped(t *testing.T) {
 	root := t.TempDir()
 	writeFixture(t, root, "data/scan-runs.tsv",

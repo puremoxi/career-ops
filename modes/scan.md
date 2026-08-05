@@ -136,12 +136,23 @@ For companies with a public API or structured feed **that are not in `local_pars
 
 **Parsing Conventions by Provider:**
 - `greenhouse`: `jobs[]` → `title`, `absolute_url`, `location.name`
-- `ashby`: GET REST API → `jobs[]` with `title`, `jobUrl`, `location` (fold in `secondaryLocations[]` — Ashby lists extra hiring regions there), `compensation` (`minValue`/`maxValue`/`currency`; already fetched via `?includeCompensation=true`), `publishedAt`; slug derived from `careers_url` pattern `jobs.ashbyhq.com/{slug}`
+- `ashby`: GET REST API → `jobs[]` with `title`, `jobUrl`, `location` (fold in `secondaryLocations[]` — Ashby lists extra hiring regions there), `compensation` (`minValue`/`maxValue`/`currency`; already fetched via `?includeCompensation=true`), `publishedAt`, `workplaceType` (`OnSite`/`Remote`/`Hybrid` — structured work-model field, see below); slug derived from `careers_url` pattern `jobs.ashbyhq.com/{slug}`
 - `bamboohr`: list `result[]` → `jobOpeningName`, `id`, `location` (city + state; append "Remote" when `isRemote`); build detail URL `https://{company}.bamboohr.com/careers/{id}/detail`; to read full JD, make a GET request to the detail URL and use `result.jobOpening` (`jobOpeningName`, `description`, `datePosted`, `minimumExperience`, `compensation`, `jobOpeningShareUrl`)
-- `lever`: root array `[]` → `text`, `hostedUrl` (fallback: `applyUrl`), `categories.location`, `descriptionPlain` (the list API ships the JD body — feeds `content_filter` and the #1597 cross-listing fingerprint)
+- `lever`: root array `[]` → `text`, `hostedUrl` (fallback: `applyUrl`), `categories.location`, `categories.workplaceType` (structured work-model field, see below), `descriptionPlain` (the list API ships the JD body — feeds `content_filter` and the #1597 cross-listing fingerprint)
 - `teamtailor`: RSS items → `title`, `link`, `location` (from the `tt:` block — `tt:city` / `tt:country`)
 - `workday`: `jobPostings[]`/`jobPostings` (based on tenant) → `title`, `externalPath` or URL built from the host, `locationsText` (fallback: derive from the URL path)
 - `breezy`: top-level array `[]` → `name`, `url` (absolute), `location.name` (or city/state/country + `is_remote`), `published_date`
+
+**Work-model tagging (remote/hybrid/onsite/mixed/unknown) — tag-and-display only, never filters:**
+
+`scan.mjs` tags every job it keeps with `work_model` and `work_model_source`, written as trailing columns in `data/scan-history.tsv`. This is informational — nothing is dropped from scan results based on work model; the user reviews it manually.
+
+- **Lever** and **Ashby** expose an explicit structured field (`categories.workplaceType`, `workplaceType`) — read directly and normalized via `providers/_work-model.mjs`'s `normalizeStructuredWorkModel()`. Tagged `work_model_source: structured`.
+- **Greenhouse**, **Eightfold**, and **SuccessFactors** have no structured field — only a free-text location string (`location.name`, `location`, `tile.location`/CSB `jobLocationShort` respectively). Each runs `classifyWorkModelFromLocation()` (same shared helper module) as a best-effort guess. Tagged `work_model_source: inferred` — lower confidence than `structured`, surfaced so it's never mistaken for a fact from the ATS.
+- **Workday** has a structured `remoteType` field, but it only exists on the per-job **detail** endpoint (`/wday/cxs/{tenant}/{site}/job/{externalPath}`), not the list endpoint `scan.mjs` fetches — confirmed live against real tenants (Pixar, Sonos). Getting it structured would cost one extra HTTP request per job; the list endpoint's `locationsText` is usually just a city name with no work-model word, so a free-text guess would mostly return `unknown` anyway. Left untagged for now (`work_model: unknown`) rather than pay that cost or ship a low-coverage guess — revisit if the cost tradeoff becomes worth it.
+- All other providers (BambooHR, Teamtailor, Breezy, and the smaller aggregators) don't populate this yet — `work_model` writes as `unknown` (never blank) for their postings.
+- `work_model` is one of `remote` / `hybrid` / `onsite` / `mixed` / `unknown`. `mixed` means genuinely conflicting signals were found in the same string (e.g. both "Remote" and "Hybrid"), not a default.
+- Full-time vs. part-time/contract is explicitly **not** classified — out of scope, since target roles here are always full-time.
 
 > **Caution — do not infer absence from a truncated read.** Careers SPAs paginate and lazy-load; a `browser_snapshot` or WebFetch of the page (and any LLM summary of that HTML) can silently drop rows, showing only the first screen of roles. Never conclude "role X is not posted" or "only N roles exist" from such a read. When the company has a public ATS API, hit it directly (append `?content=true` where the provider supports it) before making any presence/absence claim — the API returns the full board in one structured response.
 

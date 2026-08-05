@@ -146,6 +146,16 @@ If the company type is uncertain, mark it as `Unknown` and default compensation 
 
 If the brand differs from the legal employer or posting entity, classify the **actual contract / hiring entity** first and mention the brand relationship separately. Example: a "Datawhale community" role posted by an association, school, vendor, or partner should be classified by that hiring entity, not by the Datawhale brand alone.
 
+**Company Health Assessment (required):**
+
+Score using the rubric in `modes/_shared.md` ("How to score the 'Company health' dimension") — this section states *what to check*, the shared file states *how to convert findings into a score*, so the rubric is not duplicated here. Draw only on evidence already gathered for company-type classification above and Block G signal 3 (Company Hiring Signals) below — do not run additional WebSearch queries beyond the shared Blocks D+G budget specifically for this assessment.
+
+Report as a short block:
+
+- **Company health:** {Strong | Stable | Caution | Weak | Insufficient Data} — {one-line reason citing the specific evidence, e.g. "Series C raised 4 months ago, no layoff signal found" or "no funding/layoff signal surfaced within research budget"}
+
+When evidence is negative (Caution/Weak), state the specific finding plainly (e.g. "Layoffs reported {month/year}, scope: {department/company-wide}") rather than only a bucket label.
+
 **Compensation reliability (required):**
 
 First check whether the JD itself states a salary figure. If no advertised number exists, collapse this section to exactly two concise lines after the demand trend:
@@ -253,6 +263,7 @@ Analyze the job posting for signals that indicate whether this is a real, active
 - Search: `"{company}" layoffs {year}` -- note date, scale, departments
 - Search: `"{company}" hiring freeze {year}` -- note any announcements
 - If layoffs found: are they in the same department as this role?
+- This evidence also feeds the Company Health Assessment in Block D — do not re-run these searches there.
 
 **4. Reposting Detection** (from scan-history.tsv):
 - Check if company + similar role title appeared before with a different URL
@@ -369,13 +380,14 @@ Close the report body with a `## Risk Summary` block directly after Block G's se
 
 **Aggregation only, zero new judgment.** Each row quotes or links the verdict already produced by its source signal. The summary never re-scores, re-weights, or overrides — if a row looks wrong, the fix belongs in the source signal, not here.
 
-Three states per row: `✅ {clear verdict}` / `⚠️ {finding}` / `— not evaluated`. **`— not evaluated` is a first-class state:** when a signal could not run, say so explicitly rather than omitting the row, so an all-✅ summary can be trusted. **Named exception:** the Interview red flags row renders its not-evaluated case as `— no interview sessions yet` — a documented, more specific phrasing of the same "not evaluated" concept for that one row (the cross-reference check did run; it found no redflags file), not a fourth free-floating state.
+Three states per row: `✅ {clear verdict}` / `⚠️ {finding}` / `— not evaluated`. **`— not evaluated` is a first-class state:** when a signal could not run, say so explicitly rather than omitting the row, so an all-✅ summary can be trusted. **Named exceptions:** the Interview red flags row renders its not-evaluated case as `— no interview sessions yet` — a documented, more specific phrasing of the same "not evaluated" concept for that one row (the cross-reference check did run; it found no redflags file). The Company health row carries a second named exception, `➖ Insufficient Data` — a real fourth state (evidence was actively sought but none was found either way), distinct from `— not evaluated` (the check never ran at all).
 
 | Signal | Source | Row rendering |
 |--------|--------|---------------|
 | Posting legitimacy | Block G assessment tier | `✅ High Confidence`, or `⚠️ {tier} — {one-line reason}` for Proceed with Caution / Suspicious |
 | Employment classification | Employment classification signal inside Block G | `✅ clear` when the check ran and found nothing; `⚠️ contractor-style language: "{quoted phrase}"` when the flag fired; `— not evaluated` when the check could not run |
 | Culture screen | Culture screen field in Block A | `✅ pass`, or `⚠️ caution — {evidence}` / `⚠️ fail — {evidence}`; `— not evaluated` when no screen was run |
+| Company health | Company Health Assessment in Block D | `✅ Strong` / `✅ Stable`, or `⚠️ Caution — {reason}` / `⚠️ Weak — {reason}`; `➖ Insufficient Data` when no evidence was found either way; `— not evaluated` only if Block D's assessment itself is missing |
 | Interview red flags | `interview-prep/{company-slug}-redflags.md` (from `interview-redflag` mode) | **Cross-reference, not a copy:** if the file exists, surface its current warning level plus a relative link — `[{level}](../interview-prep/{company-slug}-redflags.md)` (relative to `reports/`); otherwise `— no interview sessions yet` |
 | AI claims vs. infrastructure | AI/infrastructure mismatch check in Block G, when present | If this report contains that check, mirror its verdict (`✅ consistent` / `⚠️ {finding}`); otherwise `— not evaluated`. The row activates automatically once the check exists — no ordering dependency |
 
@@ -389,6 +401,7 @@ Block format:
 | Posting legitimacy | ✅ High Confidence |
 | Employment classification | ⚠️ contractor-style language: "{quoted phrase}" |
 | Culture screen | ⚠️ caution — {evidence} |
+| Company health | ➖ Insufficient Data |
 | Interview red flags | — no interview sessions yet |
 | AI claims vs. infrastructure | — not evaluated |
 ```
@@ -519,7 +532,7 @@ Save full evaluation in `reports/{###}-{company-slug}-{YYYY-MM-DD}.md`.
 (list of 15-20 keywords from the JD for ATS optimization)
 ```
 
-**Machine Summary (required):** every report carries a `## Machine Summary` YAML fence directly after the header — same schema, exact field names, and rules as the "Machine Summary" block in `batch/batch-prompt.md` (do not duplicate the schema here; that file is the source of truth). It includes `advertised_comp`: the JD's own salary figure **verbatim** (e.g. `"80-90k EUR"`), or `null` when the JD states nothing — never estimated, never replaced with researched market data. This key seeds the advertised salary observation read by `node salary-gap.mjs`. It also includes `risk_summary`: the Risk Summary block mirrored as a map (schema and enum values in `batch/batch-prompt.md`).
+**Machine Summary (required):** every report carries a `## Machine Summary` YAML fence directly after the header — same schema, exact field names, and rules as the "Machine Summary" block in `batch/batch-prompt.md` (do not duplicate the schema here; that file is the source of truth). It includes `advertised_comp`: the JD's own salary figure **verbatim** (e.g. `"80-90k EUR"`), or `null` when the JD states nothing — never estimated, never replaced with researched market data. This key seeds the advertised salary observation read by `node salary-gap.mjs`. It also includes `company_health` / `company_health_score`, the Block D Company Health Assessment's verdict and the numeric input to the Global average (schema and enum values in `batch/batch-prompt.md`), and `risk_summary`: the Risk Summary block mirrored as a map (schema and enum values in `batch/batch-prompt.md`).
 
 ### 2. Record in tracker
 

@@ -1418,6 +1418,14 @@ export function formatScanHistoryRow(offer, date, status = 'added') {
     // cols) are unaffected, and older rows that lack it are tolerated by
     // consumers normalizing the raw name on the fly.
     normalizeCompanyName(offer.company || ''),
+    // Work-model tag (remote/hybrid/onsite/mixed) — display-only, never
+    // filters. Trailing cols 13-14: always 'unknown' (never blank) when no
+    // provider set it, so a reader can't mistake an old/untagged row for a
+    // confirmed classification. workModelSource distinguishes a structured
+    // ATS field (Lever, Ashby) from a best-effort text guess (Greenhouse) —
+    // '' when no provider attempted classification for this posting.
+    offer.workModel || 'unknown',
+    offer.workModelSource || '',
   ].map(sanitizeTsvField).join('\t');
 }
 
@@ -1511,15 +1519,16 @@ export function appendToScanHistory(offers, date, status = 'added') {
   // (formatScanHistoryRow) emits, in the same order: the original 7 positional
   // cols (url…location) plus the append-only trailing cols added since —
   // fingerprint (7), posted_at (8), trust_score (9), trust_flags (10),
-  // normalized_company (11). Written ONLY on fresh-file creation; existing files
-  // (including headerless legacy files and older 7-col-header files) are never
-  // rewritten. All readers either skip line 0 unconditionally, detect the header
-  // by its `url\t` prefix, or skip non-URL col-0 rows, so widening it stays
+  // normalized_company (11), work_model (12), work_model_source (13). Written
+  // ONLY on fresh-file creation; existing files (including headerless legacy
+  // files and older N-col-header files) are never rewritten. All readers
+  // either skip line 0 unconditionally, detect the header by its `url\t`
+  // prefix, or skip non-URL col-0 rows, so widening it stays
   // backward-compatible. `status` is parameterized so callers can record verify
   // outcomes (`skipped_expired`, etc.) without the legacy `(expired)` suffix.
   if (!existsSync(SCAN_HISTORY_PATH)) {
     mkdirSync(path.dirname(SCAN_HISTORY_PATH), { recursive: true });
-    writeFileSync(SCAN_HISTORY_PATH, 'url\tfirst_seen\tportal\ttitle\tcompany\tstatus\tlocation\tfingerprint\tposted_at\ttrust_score\ttrust_flags\tnormalized_company\n', 'utf-8');
+    writeFileSync(SCAN_HISTORY_PATH, 'url\tfirst_seen\tportal\ttitle\tcompany\tstatus\tlocation\tfingerprint\tposted_at\ttrust_score\ttrust_flags\tnormalized_company\twork_model\twork_model_source\n', 'utf-8');
   }
 
   const lines = offers.map(o => formatScanHistoryRow(o, date, status)).join('\n') + '\n';
@@ -1586,7 +1595,7 @@ const SCAN_RUNS_PATH = 'data/scan-runs.tsv';
 // 'completed' in v1; a follow-up wires failure-path writes so trend stats can
 // exclude survivorship bias. Consumers MUST parse by header name, never by
 // position — columns may be appended in later versions.
-export const SCAN_RUNS_HEADER = 'timestamp\tstatus\tcompanies\tboards\tfound\tfiltered_title\tfiltered_tier\tfiltered_location\tfiltered_posting_age\tfiltered_salary\tfiltered_content\tfiltered_cooldown\tdupes\tnew_added\terrors\tfiltered_blacklist\tfiltered_visa\tfiltered_posted_date\tfiltered_country_eligibility\n';
+export const SCAN_RUNS_HEADER = 'timestamp\tstatus\tcompanies\tboards\tfound\tfiltered_title\tfiltered_tier\tfiltered_location\tfiltered_posting_age\tfiltered_salary\tfiltered_content\tfiltered_cooldown\tdupes\tnew_added\terrors\tfiltered_blacklist\tfiltered_visa\tfiltered_posted_date\tfiltered_country_eligibility\tduration_ms\tagent_handoff_companies\tagent_handoff_names\n';
 
 export function appendScanRunSummary(c, filePath = SCAN_RUNS_PATH) {
   if (!existsSync(filePath)) writeFileSync(filePath, SCAN_RUNS_HEADER, 'utf-8');
@@ -1604,6 +1613,26 @@ export function appendScanRunSummary(c, filePath = SCAN_RUNS_PATH) {
     c.filteredPostedDate ?? 0,
     // filtered_country_eligibility (#2093) appended at the END for the same reason.
     c.filteredCountryEligibility ?? 0,
+    // duration_ms appended at the END for the same reason. Consumers that
+    // resolve columns by header name (dashboard's ParseScanRuns, stats.mjs)
+    // treat a missing/empty cell as "unknown", not "0ms" — never omit this
+    // field going forward, but its position must stay last if any consumer
+    // still parses positionally against an older file.
+    c.durationMs ?? '',
+    // agent_handoff_companies: companies this run could NOT resolve to a
+    // zero-token provider and printed under "Agent/WebSearch handoff" for a
+    // human/agent Level 1-3 pass — this run's own `companies` counter above
+    // only ever covers the zero-token-resolvable subset, so it can never be
+    // diffed against portal-health.tsv's per-run coverage to recover this
+    // number after the fact. Must be captured at write time.
+    c.agentHandoffCompanies ?? 0,
+    // agent_handoff_names: the actual company names behind the count above,
+    // comma-joined. Previously only the count was persisted and the console
+    // summary truncates at 25 names, so a Level 1-3 worker picking up an old
+    // run had no reliable way to recover the full worklist short of
+    // replicating resolveProvider's classification logic from scratch.
+    // Appended at the END per the header-name contract.
+    (c.agentHandoffNames ?? []).join(','),
   ].join('\t') + '\n';
   appendFileSync(filePath, row, 'utf-8');
 }
@@ -1796,6 +1825,10 @@ function guardStatusFor(code) {
 }
 
 async function main() {
+  // Wall-clock run duration for scan-runs.tsv's duration_ms column — captured
+  // as the very first statement so it covers the whole run (arg parsing
+  // included), not just the scanning phase.
+  const runStartMs = Date.now();
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
   const verify = args.includes('--verify');
@@ -2231,6 +2264,20 @@ async function main() {
     console.log(`Filtered by cooldown:  ${totalFilteredCooldown} removed`);
   }
   console.log(`Duplicates:            ${totalDupes} skipped`);
+  if (newOffers.length > 0) {
+    const workModelCounts = newOffers.reduce((acc, o) => {
+      const key = o.workModel || 'unknown';
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+    const workModelOrder = ['remote', 'hybrid', 'onsite', 'mixed', 'unknown'];
+    const workModelParts = workModelOrder
+      .filter(k => workModelCounts[k] > 0)
+      .map(k => `${k}: ${workModelCounts[k]}`);
+    if (workModelParts.length > 0) {
+      console.log(`Work model:            ${workModelParts.join(', ')}`);
+    }
+  }
   if (blacklist.size > 0) {
     if (includeBlacklisted) {
       console.log(`Blacklisted:           ${annotatedBlacklisted} let through annotated (--include-blacklisted)`);
@@ -2395,6 +2442,9 @@ async function main() {
       filteredVisa: totalFilteredVisa,
       filteredPostedDate: totalFilteredPostedDate,
       filteredCountryEligibility: totalFilteredCountryEligibility,
+      durationMs: Date.now() - runStartMs,
+      agentHandoffCompanies: agentHandoff.length,
+      agentHandoffNames: agentHandoff.map((item) => item.company),
     });
   }
 

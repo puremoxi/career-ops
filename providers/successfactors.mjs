@@ -1,6 +1,7 @@
 // @ts-check
 /** @typedef {import('./_types.js').Provider} Provider */
 import { decodeEntities } from './_html-entities.mjs';
+import { classifyWorkModelFromLocation } from './_work-model.mjs';
 
 // SAP SuccessFactors provider — Recruiting Marketing (RMK, ex-jobs2web) career
 // sites (Career Site Builder's branded job boards). These are the portals big
@@ -339,7 +340,16 @@ async function fetchCsb(entry, cfg, ctx) {
       for (const row of rows) {
         if (seen.has(row.id)) continue;
         seen.add(row.id);
-        const job = { title: row.title, url: row.url, company: entry.name, location: row.location };
+        const job = {
+          title: row.title,
+          url: row.url,
+          company: entry.name,
+          location: row.location,
+          // No structured work-model field on SuccessFactors' CSB API — same
+          // best-effort text guess used for Greenhouse, tagged accordingly.
+          workModel: classifyWorkModelFromLocation(row.location),
+          workModelSource: 'inferred',
+        };
         if (typeof row.postedAt === 'number') job.postedAt = row.postedAt;
         jobs.push(job);
         if (jobs.length >= MAX_JOBS) break;
@@ -377,6 +387,10 @@ async function fetchRmk(entry, cfg, ctx) {
         url: tile.url,
         company: entry.name,
         location: tile.location,
+        // No structured work-model field on SuccessFactors' RMK tile HTML —
+        // same best-effort text guess used for Greenhouse, tagged accordingly.
+        workModel: classifyWorkModelFromLocation(tile.location),
+        workModelSource: 'inferred',
       });
     }
     // No new ids this page → server ignored the offset (or we've looped). Stop.

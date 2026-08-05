@@ -1,6 +1,8 @@
 // @ts-check
 /** @typedef {import('./_types.js').Provider} Provider */
 
+import { classifyWorkModelFromLocation } from './_work-model.mjs';
+
 // Greenhouse provider — hits the public boards-api JSON endpoint.
 // Handles both explicit `api:` URLs and auto-detection from `careers_url`.
 
@@ -173,6 +175,11 @@ export default {
         company: entry.name,
         location,
         postedAt: toEpochMs(j.first_published),
+        // Greenhouse's boards-api has no structured remote/hybrid/onsite
+        // field (unlike Lever/Ashby) — this is a best-effort read of the
+        // free-text location string, always tagged 'inferred' downstream.
+        workModel: classifyWorkModelFromLocation(location),
+        workModelSource: 'inferred',
       };
     });
   },

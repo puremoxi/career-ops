@@ -1,6 +1,8 @@
 // @ts-check
 /** @typedef {import('./_types.js').Provider} Provider */
 
+import { classifyWorkModelFromLocation } from './_work-model.mjs';
+
 // Eightfold AI provider — powers the "PCS"/"PCSX" career sites of many large
 // enterprises (Netflix, Nvidia, Cisco, Booking, Salesforce, and others), either
 // on a *.eightfold.ai subdomain or proxied behind a branded custom domain
@@ -199,7 +201,16 @@ export default {
         if (!row || seen.has(row.id)) continue;
         seen.add(row.id);
         fresh++;
-        const job = { title: row.title, url: row.url, company: entry.name, location: row.location };
+        const job = {
+          title: row.title,
+          url: row.url,
+          company: entry.name,
+          location: row.location,
+          // No structured work-model field on Eightfold's search API — same
+          // best-effort text guess used for Greenhouse, tagged accordingly.
+          workModel: classifyWorkModelFromLocation(row.location),
+          workModelSource: 'inferred',
+        };
         if (typeof row.postedAt === 'number') job.postedAt = row.postedAt;
         jobs.push(job);
         if (jobs.length >= MAX_JOBS) break;

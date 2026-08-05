@@ -35,6 +35,20 @@
  *                                   'invalid_url', 'suspicious_domain').
  * @property {'high'|'medium'|'low'} [trustLevel] Classification derived from
  *                                                 trustScore.
+ * @property {'remote'|'hybrid'|'onsite'|'mixed'|'unknown'} [workModel] Work
+ *                              location model. Set by providers that expose or
+ *                              can infer it (Lever, Ashby: structured field;
+ *                              Greenhouse: best-effort text heuristic — see
+ *                              providers/_work-model.mjs). Absent for other
+ *                              providers; scan.mjs writes 'unknown' to
+ *                              data/scan-history.tsv when unset. Tag-only —
+ *                              never filters scan results.
+ * @property {'structured'|'inferred'} [workModelSource] How workModel was
+ *                              obtained: 'structured' from an explicit ATS
+ *                              field (Lever/Ashby), 'inferred' from free-text
+ *                              location parsing (Greenhouse) — lower
+ *                              confidence, surfaced so it's never mistaken
+ *                              for fact.
  */
 
 /**

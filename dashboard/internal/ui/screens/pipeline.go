@@ -92,6 +92,9 @@ type PipelineRefreshMsg struct{}
 // PipelineOpenProgressMsg is emitted when the progress screen should open.
 type PipelineOpenProgressMsg struct{}
 
+// PipelineOpenScanStatsMsg is emitted when the scan-effectiveness screen should open.
+type PipelineOpenScanStatsMsg struct{}
+
 var canonicalDiscardReasons = []string{
 	"salary_too_low",
 	"hybrid_required",
@@ -116,6 +119,7 @@ const (
 	sortScore    = "score"
 	sortDate     = "date"
 	sortCompany  = "company"
+	sortRole     = "role"
 	sortStatus   = "status"
 	sortLocation = "location"
 	sortPay      = "pay"
@@ -154,19 +158,20 @@ func getPipelineTabs() []pipelineTab {
 	}
 }
 
-var sortCycle = []string{sortScore, sortDate, sortCompany, sortStatus, sortLocation, sortPay, sortLast}
+var sortCycle = []string{sortScore, sortDate, sortCompany, sortRole, sortStatus, sortLocation, sortPay, sortLast}
 
 // ColumnID identifies an optional table column in the pipeline view.
 type ColumnID int
 
 const (
 	// Optional columns — user-toggleable via the column picker (C key).
-	ColDate        ColumnID = iota // APPLIED date
-	ColLocation                    // LOCATION city+state
-	ColPay                         // PAY range
-	ColHasReport                   // RPT: ✓/—
-	ColHasPDF                      // PDF: ✓/—
-	ColLastContact                 // LAST contact date
+	ColDate          ColumnID = iota // APPLIED date
+	ColLocation                      // LOCATION city+state
+	ColPay                           // PAY range
+	ColHasReport                     // RPT: ✓/—
+	ColHasPDF                        // PDF: ✓/—
+	ColLastContact                   // LAST contact date
+	ColCompanyHealth                 // HEALTH: Strong/Stable/Caution/Weak/Unknown, from report Machine Summary
 )
 
 // colDef describes one optional column for the picker UI.
@@ -186,6 +191,7 @@ func getOptionalCols() []colDef {
 		{ColHasReport, i18n.Current.ColReport, "✓/—", 4, false},
 		{ColHasPDF, i18n.Current.ColPDF, "✓/—", 4, false},
 		{ColLastContact, i18n.Current.ColLast, "", 10, false},
+		{ColCompanyHealth, i18n.Current.ColCompanyHealth, "", 8, false},
 	}
 }
 
@@ -661,6 +667,9 @@ func (m PipelineModel) handleKey(msg tea.KeyMsg) (PipelineModel, tea.Cmd) {
 
 	case "p":
 		return m, func() tea.Msg { return PipelineOpenProgressMsg{} }
+
+	case "e":
+		return m, func() tea.Msg { return PipelineOpenScanStatsMsg{} }
 
 	case "r":
 		return m, func() tea.Msg { return PipelineRefreshMsg{} }
@@ -1183,6 +1192,10 @@ func (m PipelineModel) sortLess() func(a, b model.CareerApplication) bool {
 		return func(a, b model.CareerApplication) bool {
 			return strings.ToLower(a.Company) < strings.ToLower(b.Company)
 		}
+	case sortRole:
+		return func(a, b model.CareerApplication) bool {
+			return strings.ToLower(a.Role) < strings.ToLower(b.Role)
+		}
 	case sortStatus:
 		return func(a, b model.CareerApplication) bool {
 			return data.StatusPriority(a.Status) < data.StatusPriority(b.Status)
@@ -1527,7 +1540,7 @@ func (m PipelineModel) renderBody() string {
 type colWidths struct {
 	num, score, company, status, role int
 	// optional columns — 0 means the column is hidden
-	date, loc, pay, rpt, pdf, last int
+	date, loc, pay, rpt, pdf, last, hlt int
 }
 
 func (m PipelineModel) colVisible(id ColumnID) bool {
@@ -1543,32 +1556,188 @@ func (m PipelineModel) colVisible(id ColumnID) bool {
 	return m.visibleCols[id]
 }
 
+// columnWidths sizes every structured column to fit its own content —
+// header label vs. the widest actual value across the full filtered set —
+// instead of a fixed constant, so e.g. a long company name is no longer
+// truncated at a hardcoded 16 runes just because the terminal has room to
+// spare. A column never grows past what its content actually needs.
+//
+// Role is the one exception: job titles are inherently unpredictable free
+// text (as short as "PM" or well past 80 runes), so it stays the elastic
+// column that absorbs whatever width is left after every other column has
+// taken exactly what it needs — same role it played before this function
+// measured content, just now against right-sized neighbors instead of
+// oversized fixed ones.
 func (m PipelineModel) columnWidths() colWidths {
-	c := colWidths{num: 5, score: 5, company: 16, status: 16}
+	n := len(m.filtered)
+	numTexts := make([]string, n)
+	companyTexts := make([]string, n)
+	statusTexts := make([]string, n)
+	var dateTexts, locTexts, payTexts, lastTexts, healthTexts []string
 	if m.colVisible(ColDate) {
-		c.date = 10
+		dateTexts = make([]string, n)
 	}
 	if m.colVisible(ColLocation) {
-		c.loc = 20
+		locTexts = make([]string, n)
 	}
 	if m.colVisible(ColPay) {
-		c.pay = 16
-	}
-	if m.colVisible(ColHasReport) {
-		c.rpt = 4
-	}
-	if m.colVisible(ColHasPDF) {
-		c.pdf = 4
+		payTexts = make([]string, n)
 	}
 	if m.colVisible(ColLastContact) {
-		c.last = 10
+		lastTexts = make([]string, n)
 	}
-	fixed := c.num + c.score + c.date + c.company + c.status + c.loc + c.pay + c.rpt + c.pdf + c.last
+	if m.colVisible(ColCompanyHealth) {
+		healthTexts = make([]string, n)
+	}
+
+	for i, app := range m.filtered {
+		numTexts[i] = numCellText(app)
+		companyTexts[i] = app.Company
+		statusTexts[i] = statusCellText(app)
+		if dateTexts != nil {
+			dateTexts[i] = dateCellText(app)
+		}
+		if locTexts != nil {
+			locTexts[i] = locCellText(app)
+		}
+		if payTexts != nil {
+			payTexts[i] = m.payCellText(app)
+		}
+		if lastTexts != nil {
+			lastTexts[i] = lastCellText(app)
+		}
+		if healthTexts != nil {
+			healthTexts[i] = companyHealthCellText(app)
+		}
+	}
+
+	c := colWidths{
+		num:     maxContentWidth("#", numTexts),
+		score:   3, // score cell is unpadded, always rendered as "X.X" — not part of the intrinsic scheme
+		company: maxContentWidth(i18n.Current.ColCompany, companyTexts),
+		status:  maxContentWidth(i18n.Current.ColStatus, statusTexts),
+	}
+	if m.colVisible(ColDate) {
+		c.date = maxContentWidth(i18n.Current.ColApplied, dateTexts)
+	}
+	if m.colVisible(ColLocation) {
+		c.loc = maxContentWidth(i18n.Current.ColLocation, locTexts)
+	}
+	if m.colVisible(ColPay) {
+		c.pay = maxContentWidth(i18n.Current.ColPay, payTexts)
+	}
+	if m.colVisible(ColHasReport) {
+		c.rpt = lipgloss.Width(i18n.Current.ColReport) // check-cells are always "✓"/"—", 1 rune — header sets the floor
+	}
+	if m.colVisible(ColHasPDF) {
+		c.pdf = lipgloss.Width(i18n.Current.ColPDF)
+	}
+	if m.colVisible(ColLastContact) {
+		c.last = maxContentWidth(i18n.Current.ColLast, lastTexts)
+	}
+	if m.colVisible(ColCompanyHealth) {
+		c.hlt = maxContentWidth(i18n.Current.ColCompanyHealth, healthTexts)
+	}
+
+	fixed := c.num + c.score + c.date + c.company + c.status + c.loc + c.pay + c.rpt + c.pdf + c.last + c.hlt
 	c.role = m.width - fixed - 14 // separators + outer padding
 	if c.role < 15 {
 		c.role = 15
 	}
 	return c
+}
+
+// Plain (unstyled) cell text — the single source of truth shared by both
+// columnWidths() (measurement) and the render*Cell functions below, so the
+// two can never drift apart on what a cell actually contains.
+
+func numCellText(app model.CareerApplication) string {
+	if app.Number > 0 {
+		return fmt.Sprintf("#%d", app.Number)
+	}
+	return "#—"
+}
+
+func dateCellText(app model.CareerApplication) string {
+	if app.Date == "" {
+		return "—"
+	}
+	return app.Date
+}
+
+func locCellText(app model.CareerApplication) string {
+	text := app.WorkMode
+	if app.Location != "" {
+		if text != "" {
+			text += " · " + app.Location
+		} else {
+			text = app.Location
+		}
+	}
+	if text == "" {
+		text = "—"
+	}
+	return text
+}
+
+// payCellText mirrors renderPayCell's source-of-truth logic (Notes/observation
+// PayRange, falling back to the lazily-loaded report-cache comp estimate).
+func (m PipelineModel) payCellText(app model.CareerApplication) string {
+	if app.PayRange != "" {
+		return app.PayRange
+	}
+	if summary, ok := m.reportCache[app.ReportPath]; ok {
+		return summary.comp
+	}
+	return ""
+}
+
+func lastCellText(app model.CareerApplication) string {
+	if app.LastContact == "" {
+		return "—"
+	}
+	return formatTimeAgo(app.LastContact)
+}
+
+func statusCellText(app model.CareerApplication) string {
+	return statusLabel(data.NormalizeStatus(app.Status))
+}
+
+// companyHealthCellText renders the report's own company_health vocabulary
+// (Strong | Stable | Caution | Weak | Insufficient Data) directly, rather
+// than translating it into a separate Low/Medium/High risk framing — showing
+// the same term in the report and the dashboard avoids the confusion of
+// inverted-polarity scales ("5/5 Strong" reading as "Low" risk). Old reports
+// (field absent, CompanyHealth == "") and an explicit "Insufficient Data"
+// verdict both render as "Unknown" — both mean no usable signal, which is
+// what a user scanning the column actually needs to know.
+func companyHealthCellText(app model.CareerApplication) string {
+	switch app.CompanyHealth {
+	case "Strong":
+		return "Strong"
+	case "Stable":
+		return "Stable"
+	case "Caution":
+		return "Caution"
+	case "Weak":
+		return "Weak"
+	default: // "", "Insufficient Data"
+		return "Unknown"
+	}
+}
+
+// maxContentWidth returns the widest rune-count among a column's header
+// label and every row's cell text. Measured over the full filtered set (not
+// just the current scroll viewport) so column widths don't jitter as the
+// user scrolls.
+func maxContentWidth(header string, cells []string) int {
+	w := lipgloss.Width(header)
+	for _, c := range cells {
+		if cw := lipgloss.Width(c); cw > w {
+			w = cw
+		}
+	}
+	return w
 }
 
 func (m PipelineModel) workModeColor(mode string) lipgloss.Color {
@@ -1587,17 +1756,7 @@ func (m PipelineModel) workModeColor(mode string) lipgloss.Color {
 }
 
 func (m PipelineModel) renderLocCell(app model.CareerApplication, width int) string {
-	text := app.WorkMode
-	if app.Location != "" {
-		if text != "" {
-			text += " · " + app.Location
-		} else {
-			text = app.Location
-		}
-	}
-	if text == "" {
-		text = "—"
-	}
+	text := locCellText(app)
 	return lipgloss.NewStyle().Foreground(m.workModeColor(app.WorkMode)).Width(width).Render(truncateRunes(text, width))
 }
 
@@ -1611,24 +1770,37 @@ func (m PipelineModel) renderCheckCell(yes bool, width int) string {
 	return lipgloss.NewStyle().Foreground(color).Width(width).Render(text)
 }
 
-// renderPayCell prefers the pay range parsed from notes and falls back to the
-// report-cache comp estimate (the pre-column behavior). POSTED bands render
-// green; estimates stay yellow.
-func (m PipelineModel) renderPayCell(app model.CareerApplication, width int) string {
-	text := app.PayRange
-	color := m.theme.Yellow
-	if app.PaySource == "POSTED" {
+// renderCompanyHealthCell renders the company_health verdict, color-coded the
+// same way workModeColor codes location risk (green good, yellow/amber
+// caution, red weak, dim neutral for unknown).
+func (m PipelineModel) renderCompanyHealthCell(app model.CareerApplication, width int) string {
+	text := companyHealthCellText(app)
+	color := m.theme.Subtext
+	switch text {
+	case "Strong", "Stable":
 		color = m.theme.Green
+	case "Caution":
+		color = m.theme.Yellow
+	case "Weak":
+		color = m.theme.Red
 	}
-	if text == "" {
-		if summary, ok := m.reportCache[app.ReportPath]; ok && summary.comp != "" {
-			text = summary.comp
-		}
+	return lipgloss.NewStyle().Foreground(color).Width(width).Render(truncateRunes(text, width))
+}
+
+// renderPayCell prefers the pay range parsed from notes and falls back to the
+// report-cache comp estimate (the pre-column behavior). POSTED bands and
+// confirmed (offer/recruiter/contract) figures render green; estimates stay
+// yellow.
+func (m PipelineModel) renderPayCell(app model.CareerApplication, width int) string {
+	text := m.payCellText(app)
+	color := m.theme.Yellow
+	if app.PaySource == "POSTED" || app.PaySource == "confirmed" {
+		color = m.theme.Green
 	}
 	if text == "" {
 		return lipgloss.NewStyle().Width(width).Render("")
 	}
-	return lipgloss.NewStyle().Foreground(color).Width(width).Render(truncateRunes(text, width-1))
+	return lipgloss.NewStyle().Foreground(color).Width(width).Render(truncateRunes(text, width))
 }
 
 // renderColumnHeader labels the table columns; widths mirror renderAppLine.
@@ -1664,6 +1836,9 @@ func (m PipelineModel) renderColumnHeader() string {
 	if cw.last > 0 {
 		segments = append(segments, cell(i18n.Current.ColLast, cw.last))
 	}
+	if cw.hlt > 0 {
+		segments = append(segments, cell(i18n.Current.ColCompanyHealth, cw.hlt))
+	}
 
 	padStyle := lipgloss.NewStyle().Padding(0, 2)
 	return padStyle.Render(" " + strings.Join(segments, " "))
@@ -1673,37 +1848,38 @@ func (m PipelineModel) renderAppLine(app model.CareerApplication, selected bool)
 	padStyle := lipgloss.NewStyle().Padding(0, 2)
 	cw := m.columnWidths()
 
-	// Tracker number (fixed width)
-	numText := "#—"
-	if app.Number > 0 {
-		numText = fmt.Sprintf("#%d", app.Number)
-	}
+	// Tracker number
+	numText := numCellText(app)
 	numStyle := lipgloss.NewStyle().Foreground(m.theme.Blue).Bold(true).Width(cw.num)
 
-	// Score with color
-	scoreStyle := m.scoreStyle(app.Score)
-	score := scoreStyle.Render(fmt.Sprintf("%.1f", app.Score))
+	// Score with color. Score <= 0 means no numeric score was parsed (e.g. a
+	// tracker sentinel like "N/A" for a backfilled row with no evaluation
+	// report) — render the neutral placeholder used elsewhere in this file
+	// rather than a misleading "0.0" in the lowest-tier (red) color.
+	var score string
+	if app.Score > 0 {
+		score = m.scoreStyle(app.Score).Render(fmt.Sprintf("%.1f", app.Score))
+	} else {
+		score = lipgloss.NewStyle().Foreground(m.theme.Subtext).Width(3).Render("—")
+	}
 
 	// Company (truncate)
 	company := truncateRunes(app.Company, cw.company)
 	companyStyle := lipgloss.NewStyle().Foreground(m.theme.Text).Width(cw.company)
 
-	// Date (fixed width)
-	dateText := app.Date
-	if dateText == "" {
-		dateText = "—"
-	}
+	// Date
+	dateText := dateCellText(app)
 	dateStyle := lipgloss.NewStyle().Foreground(m.theme.Subtext).Width(cw.date)
 
 	// Role (truncate)
 	role := truncateRunes(app.Role, cw.role)
 	roleStyle := lipgloss.NewStyle().Foreground(m.theme.Subtext).Width(cw.role)
 
-	// Status with color -- fixed column
+	// Status with color
 	norm := data.NormalizeStatus(app.Status)
 	statusColor := m.statusColorMap()[norm]
 	statusStyle := lipgloss.NewStyle().Foreground(statusColor).Width(cw.status)
-	statusText := statusStyle.Render(truncateRunes(statusLabel(norm), cw.status))
+	statusText := statusStyle.Render(truncateRunes(statusCellText(app), cw.status))
 
 	segments := []string{
 		numStyle.Render(truncateRunes(numText, cw.num)),
@@ -1729,15 +1905,15 @@ func (m PipelineModel) renderAppLine(app model.CareerApplication, selected bool)
 		segments = append(segments, m.renderCheckCell(app.HasPDF, cw.pdf))
 	}
 	if cw.last > 0 {
-		lastText := "—"
-		if app.LastContact != "" {
-			lastText = formatTimeAgo(app.LastContact)
-		}
+		lastText := lastCellText(app)
 		lastStyle := lipgloss.NewStyle().Foreground(m.theme.Subtext).Width(cw.last)
 		if app.LastContact != "" && app.LastContact != app.Date {
 			lastStyle = lastStyle.Foreground(m.theme.Text)
 		}
 		segments = append(segments, lastStyle.Render(truncateRunes(lastText, cw.last)))
+	}
+	if cw.hlt > 0 {
+		segments = append(segments, m.renderCompanyHealthCell(app, cw.hlt))
 	}
 
 	line := " " + strings.Join(segments, " ")
@@ -1914,6 +2090,7 @@ func (m PipelineModel) renderHelp() string {
 		keyStyle.Render("C") + descStyle.Render(i18n.Current.HelpColumns) +
 		keyStyle.Render("v") + descStyle.Render(i18n.Current.HelpView) +
 		keyStyle.Render("p") + descStyle.Render(i18n.Current.HelpProgress) +
+		keyStyle.Render("e") + descStyle.Render(i18n.Current.HelpScanStats) +
 		keyStyle.Render("t") + descStyle.Render(i18n.Current.HelpLanguage) +
 		keyStyle.Render("m") + descStyle.Render(i18n.Current.HelpManifesto) +
 		keyStyle.Render("q") + descStyle.Render(i18n.Current.HelpQuit)

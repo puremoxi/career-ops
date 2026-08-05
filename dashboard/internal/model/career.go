@@ -14,18 +14,12 @@ type CareerApplication struct {
 	ReportNumber string
 	Notes        string
 	JobURL       string // URL of the original job posting
-	// CompanyHealth is the Machine Summary `company_health` value ("Strong" |
-	// "Stable" | "Caution" | "Weak" | "Insufficient Data"), eagerly parsed
-	// from the report during ParseApplications (report file is already read
-	// there for JobURL, so this costs no extra I/O). Empty string means the
-	// report has no company_health field (old report) or there is no report.
-	CompanyHealth string
 	// Derived from Notes free-text (see data.deriveNoteFields)
 	Location    string  // "City, ST" when a US city+state appears in the notes
 	WorkMode    string  // "Remote" | "Hybrid" | "Full" (onsite), "" when unknown
-	PayRange    string  // best-known pay range: data/salary-observations.tsv when present, else the first $-range found in the notes, e.g. "$140-210K"
+	PayRange    string  // first $-range found in the notes, e.g. "$140-210K"
 	PayMax      float64 // top of PayRange in dollars (sort key), 0 when unknown
-	PaySource   string  // "confirmed" (actual, from salary-observations.tsv) | "POSTED" (advertised, from salary-observations.tsv or Notes) | "est" (Notes estimate) | "" unknown
+	PaySource   string  // "POSTED" when the JD listed it, "est" for estimates, "" unknown
 	LastContact string  // max YYYY-MM-DD found in notes (falls back to applied date)
 	// Enrichment (lazy loaded from report)
 	Archetype    string

@@ -1,8 +1,6 @@
 // @ts-check
 /** @typedef {import('./_types.js').Provider} Provider */
 
-import { normalizeStructuredWorkModel } from './_work-model.mjs';
-
 // Lever provider — hits the public postings endpoint.
 // Auto-detects from careers_url via jobs.(eu.)?lever.co/<slug>.
 // Handles both explicit `api:` URLs and auto-detection from `careers_url`.
@@ -73,10 +71,6 @@ export default {
       // payload, no per-job request) — enables scan.mjs content_filter.
       description: typeof j.descriptionPlain === 'string' ? j.descriptionPlain : '',
       postedAt: typeof j.createdAt === 'number' ? j.createdAt : undefined,
-      // Lever exposes remote/hybrid/onsite as a structured field (unlike
-      // Greenhouse) — read it directly instead of guessing from location text.
-      workModel: normalizeStructuredWorkModel(j.categories?.workplaceType),
-      workModelSource: 'structured',
     }));
   },
 };

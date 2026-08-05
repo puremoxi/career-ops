@@ -23,23 +23,16 @@ const (
 	viewPipeline viewState = iota
 	viewReport
 	viewProgress
-	viewScanStats
 )
 
 type appModel struct {
-	pipeline           screens.PipelineModel
-	viewer             screens.ViewerModel
-	progress           screens.ProgressModel
-	scanStats          screens.ScanStatsModel
-	state              viewState
-	careerOpsPath      string
-	theme              theme.Theme
-	progressMetrics    model.ProgressMetrics
-	scanRunMetrics     data.ScanRunMetrics
-	scanHistoryMetrics data.ScanHistoryMetrics
-	portalHealth       data.PortalHealthMetrics
-	portalsConfig      data.PortalsConfigSummary
-	queryProfiles      map[string]string
+	pipeline        screens.PipelineModel
+	viewer          screens.ViewerModel
+	progress        screens.ProgressModel
+	state           viewState
+	careerOpsPath   string
+	theme           theme.Theme
+	progressMetrics model.ProgressMetrics
 }
 
 func (m *appModel) reloadPipelineData() {
@@ -47,14 +40,6 @@ func (m *appModel) reloadPipelineData() {
 	metrics := data.ComputeMetrics(apps)
 	m.progressMetrics = data.ComputeProgressMetrics(apps)
 	m.pipeline = m.pipeline.WithReloadedData(apps, metrics)
-	// Scan data lives outside applications.md (scan-runs.tsv, scan-history.tsv)
-	// and can change between dashboard sessions via `node scan.mjs` runs, so
-	// refresh it alongside application data on every `r` reload.
-	m.scanRunMetrics = data.ParseScanRuns(m.careerOpsPath)
-	m.scanHistoryMetrics = data.ParseScanHistory(m.careerOpsPath)
-	m.portalHealth = data.ParsePortalHealth(m.careerOpsPath)
-	m.portalsConfig = data.ParsePortalsConfig(m.careerOpsPath)
-	m.queryProfiles = data.ParseQueryProfiles(m.careerOpsPath)
 }
 
 func (m appModel) Init() tea.Cmd {
@@ -81,9 +66,6 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.state == viewProgress {
 			m.progress.Resize(msg.Width, msg.Height)
-		}
-		if m.state == viewScanStats {
-			m.scanStats.Resize(msg.Width, msg.Height)
 		}
 		pm, cmd := m.pipeline.Update(msg)
 		m.pipeline = pm
@@ -185,23 +167,6 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state = viewPipeline
 		return m, nil
 
-	case screens.PipelineOpenScanStatsMsg:
-		m.scanStats = screens.NewScanStatsModel(
-			theme.NewTheme("catppuccin-mocha"),
-			m.scanRunMetrics,
-			m.scanHistoryMetrics,
-			m.portalHealth,
-			m.portalsConfig,
-			m.queryProfiles,
-			m.pipeline.Width(), m.pipeline.Height(),
-		)
-		m.state = viewScanStats
-		return m, nil
-
-	case screens.ScanStatsClosedMsg:
-		m.state = viewPipeline
-		return m, nil
-
 	case screens.PipelineOpenURLMsg:
 		return m, openCmd(msg.URL)
 
@@ -220,11 +185,6 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.state == viewProgress {
 			pg, cmd := m.progress.Update(msg)
 			m.progress = pg
-			return m, cmd
-		}
-		if m.state == viewScanStats {
-			ss, cmd := m.scanStats.Update(msg)
-			m.scanStats = ss
 			return m, cmd
 		}
 		pm, cmd := m.pipeline.Update(msg)
@@ -290,8 +250,6 @@ func (m appModel) View() string {
 		return m.viewer.View()
 	case viewProgress:
 		return m.progress.View()
-	case viewScanStats:
-		return m.scanStats.View()
 	default:
 		return m.pipeline.View()
 	}
@@ -336,15 +294,10 @@ func main() {
 	}
 
 	m := appModel{
-		pipeline:           pm,
-		careerOpsPath:      careerOpsPath,
-		theme:              t,
-		progressMetrics:    progressMetrics,
-		scanRunMetrics:     data.ParseScanRuns(careerOpsPath),
-		scanHistoryMetrics: data.ParseScanHistory(careerOpsPath),
-		portalHealth:       data.ParsePortalHealth(careerOpsPath),
-		portalsConfig:      data.ParsePortalsConfig(careerOpsPath),
-		queryProfiles:      data.ParseQueryProfiles(careerOpsPath),
+		pipeline:        pm,
+		careerOpsPath:   careerOpsPath,
+		theme:           t,
+		progressMetrics: progressMetrics,
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())

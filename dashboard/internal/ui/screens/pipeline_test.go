@@ -87,139 +87,30 @@ func TestWithReloadedDataPreservesStateAndSelection(t *testing.T) {
 	}
 }
 
-func TestSortByRoleOrdersAlphabetically(t *testing.T) {
-	apps := []model.CareerApplication{
-		{Company: "Gamma", Role: "VFX Supervisor", Status: "Evaluated", Score: 4.0, ReportPath: "reports/003-gamma.md"},
-		{Company: "Acme", Role: "Art Director", Status: "Evaluated", Score: 4.2, ReportPath: "reports/001-acme.md"},
-		{Company: "Beta", Role: "creative technologist", Status: "Applied", Score: 4.6, ReportPath: "reports/002-beta.md"},
-	}
-
+func TestRenderAppLineIncludesDateColumn(t *testing.T) {
 	pm := NewPipelineModel(
 		theme.NewTheme("catppuccin-mocha"),
-		apps,
-		model.PipelineMetrics{Total: len(apps)},
+		nil,
+		model.PipelineMetrics{},
 		"..",
 		120,
 		40,
 	)
-	pm.sortMode = sortRole
-	pm.activeTab = 0
-	pm.viewMode = "flat"
-	pm.applyFilterAndSort()
 
-	if got := len(pm.filtered); got != 3 {
-		t.Fatalf("expected 3 filtered apps, got %d", got)
-	}
-	// Case-insensitive alphabetical by Role: "Art Director" < "creative technologist" < "VFX Supervisor".
-	wantOrder := []string{"Art Director", "creative technologist", "VFX Supervisor"}
-	for i, want := range wantOrder {
-		if got := pm.filtered[i].Role; got != want {
-			t.Fatalf("position %d: expected role %q, got %q (full order: %+v)", i, want, got, pm.filtered)
-		}
-	}
-}
-
-func TestRenderAppLineIncludesDateColumn(t *testing.T) {
-	// columnWidths() sizes each column to fit the actual content in
-	// m.filtered, so the app under test must be part of the model's dataset
-	// (as it always is in real usage via applyFilterAndSort) rather than a
-	// synthetic value never seen by the model — otherwise the Date column
-	// has nothing to size itself against but its own header label.
-	app := model.CareerApplication{
+	line := pm.renderAppLine(model.CareerApplication{
 		Number:  42,
 		Date:    "2026-04-13",
 		Company: "Anthropic",
 		Role:    "Forward Deployed Engineer",
 		Status:  "Applied",
 		Score:   4.5,
-	}
-	pm := NewPipelineModel(
-		theme.NewTheme("catppuccin-mocha"),
-		[]model.CareerApplication{app},
-		model.PipelineMetrics{},
-		"..",
-		120,
-		40,
-	)
-
-	line := pm.renderAppLine(app, false)
+	}, false)
 
 	if !strings.Contains(line, "2026-04-13") {
 		t.Fatalf("expected rendered line to include date column, got %q", line)
 	}
 	if !strings.Contains(line, "#42") {
 		t.Fatalf("expected rendered line to include tracker number marker, got %q", line)
-	}
-}
-
-func TestCompanyHealthColumnDefaultsToOff(t *testing.T) {
-	found := false
-	for _, col := range getOptionalCols() {
-		if col.id == ColCompanyHealth {
-			found = true
-			if col.onByDefault {
-				t.Fatalf("expected ColCompanyHealth to default to off (optional, opt-in), got onByDefault=true")
-			}
-		}
-	}
-	if !found {
-		t.Fatal("expected ColCompanyHealth to be present in getOptionalCols()")
-	}
-}
-
-func TestRenderAppLineIncludesCompanyHealthWhenToggledOn(t *testing.T) {
-	app := model.CareerApplication{
-		Number:        7,
-		Company:       "Faire",
-		Role:          "Head of Creative",
-		Status:        "Evaluated",
-		Score:         4.1,
-		CompanyHealth: "Caution",
-	}
-	pm := NewPipelineModel(
-		theme.NewTheme("catppuccin-mocha"),
-		[]model.CareerApplication{app},
-		model.PipelineMetrics{},
-		"..",
-		120,
-		40,
-	)
-	pm.visibleCols[ColCompanyHealth] = true
-
-	line := pm.renderAppLine(app, false)
-	if !strings.Contains(line, "Caution") {
-		t.Fatalf("expected rendered line to show the report's own \"Caution\" term, got %q", line)
-	}
-}
-
-func TestRenderAppLineShowsPlaceholderForUnscoredRow(t *testing.T) {
-	// A backfilled row with tracker Score "N/A" parses to app.Score == 0
-	// (reScoreValue doesn't match "N/A"). The row must render a neutral "—"
-	// placeholder, not a misleading "0.0" in the lowest-tier red color.
-	app := model.CareerApplication{
-		Number:   46,
-		Company:  "Sphere Entertainment",
-		Role:     "VFX Supervisor",
-		Status:   "Interview",
-		Score:    0,
-		ScoreRaw: "N/A",
-	}
-	pm := NewPipelineModel(
-		theme.NewTheme("catppuccin-mocha"),
-		[]model.CareerApplication{app},
-		model.PipelineMetrics{},
-		"..",
-		120,
-		40,
-	)
-
-	line := pm.renderAppLine(app, false)
-
-	if strings.Contains(line, "0.0") {
-		t.Fatalf("expected no misleading 0.0 score for an unscored row, got %q", line)
-	}
-	if !strings.Contains(line, "—") {
-		t.Fatalf("expected neutral placeholder for an unscored row, got %q", line)
 	}
 }
 
@@ -796,5 +687,43 @@ func TestWithReloadedDataPreservesDiscardAndHiredFlow(t *testing.T) {
 	}
 	if reloaded.hiredStep != 1 || reloaded.hiredApp.Company != "Acme" {
 		t.Fatalf("hired flow lost: step=%d app=%+v", reloaded.hiredStep, reloaded.hiredApp)
+	}
+}
+
+func TestGetStatusPairsPinsCurrentStatusToFront(t *testing.T) {
+	base := getStatusPairs("")
+
+	ordered := getStatusPairs("applied")
+	if ordered[0].Canonical != "Applied" {
+		t.Fatalf("ordered[0].Canonical = %q, want Applied", ordered[0].Canonical)
+	}
+	if len(ordered) != len(base) {
+		t.Fatalf("len(ordered) = %d, want %d (no entries added or dropped)", len(ordered), len(base))
+	}
+
+	// The rest of the list keeps its original relative order.
+	var restGotWithoutApplied []string
+	for _, pair := range ordered[1:] {
+		restGotWithoutApplied = append(restGotWithoutApplied, pair.Canonical)
+	}
+	var restWant []string
+	for _, pair := range base {
+		if pair.Canonical != "Applied" {
+			restWant = append(restWant, pair.Canonical)
+		}
+	}
+	if strings.Join(restGotWithoutApplied, ",") != strings.Join(restWant, ",") {
+		t.Fatalf("rest of list reordered: got %v, want %v", restGotWithoutApplied, restWant)
+	}
+}
+
+func TestGetStatusPairsUnrecognizedStatusFallsBackToStaticOrder(t *testing.T) {
+	base := getStatusPairs("")
+	got := getStatusPairs("some-unmapped-status")
+
+	for i := range base {
+		if got[i].Canonical != base[i].Canonical {
+			t.Fatalf("got[%d].Canonical = %q, want %q (static order)", i, got[i].Canonical, base[i].Canonical)
+		}
 	}
 }

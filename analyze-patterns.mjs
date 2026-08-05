@@ -52,10 +52,6 @@ const MACHINE_SUMMARY_FIELDS = new Set([
   // Work-authorization / visa-sponsorship tier from Block A (report + Machine
   // Summary only). Allowlisted so it round-trips; no consumer logic yet.
   'work_auth',
-  // Company Health dimension (Block D). Allowlisted so it round-trips; no
-  // consumer logic yet.
-  'company_health',
-  'company_health_score',
 ]);
 
 // --- CLI args ---

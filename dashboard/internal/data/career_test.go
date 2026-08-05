@@ -240,48 +240,6 @@ func TestParseApplicationsResolvesTrackerRelativeReportLinks(t *testing.T) {
 	}
 }
 
-func TestParseApplicationsParsesCompanyHealth(t *testing.T) {
-	tempDir := t.TempDir()
-	dataDir := filepath.Join(tempDir, "data")
-	reportsDir := filepath.Join(tempDir, "reports")
-	for _, dir := range []string{dataDir, reportsDir} {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			t.Fatalf("failed to create dir %s: %v", dir, err)
-		}
-	}
-
-	applications := `# Applications Tracker
-
-| # | Date | Company | Role | Score | Status | PDF | Report | Notes |
-|---|------|---------|------|-------|--------|-----|--------|-------|
-| 1 | 2026-06-03 | Weak Co | Engineer | 3.0/5 | Evaluated | ❌ | [1](../reports/001-weak-2026-06-03.md) | has company_health |
-| 2 | 2026-06-03 | Old Co | Engineer | 3.0/5 | Evaluated | ❌ | [2](../reports/002-old-2026-06-03.md) | pre-dates the field |
-`
-	if err := os.WriteFile(filepath.Join(dataDir, "applications.md"), []byte(applications), 0o644); err != nil {
-		t.Fatalf("failed to write applications tracker: %v", err)
-	}
-
-	reportWithHealth := "# Evaluation\n\n## Machine Summary\n\n```yaml\ncompany: \"Weak Co\"\ncompany_health: \"Weak\"\ncompany_health_score: 2\n```\n"
-	reportWithoutHealth := "# Evaluation\n\n## Machine Summary\n\n```yaml\ncompany: \"Old Co\"\n```\n"
-	if err := os.WriteFile(filepath.Join(reportsDir, "001-weak-2026-06-03.md"), []byte(reportWithHealth), 0o644); err != nil {
-		t.Fatalf("failed to write report: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(reportsDir, "002-old-2026-06-03.md"), []byte(reportWithoutHealth), 0o644); err != nil {
-		t.Fatalf("failed to write report: %v", err)
-	}
-
-	apps := ParseApplications(tempDir)
-	if len(apps) != 2 {
-		t.Fatalf("expected 2 parsed applications, got %d", len(apps))
-	}
-	if apps[0].CompanyHealth != "Weak" {
-		t.Errorf("expected CompanyHealth %q, got %q", "Weak", apps[0].CompanyHealth)
-	}
-	if apps[1].CompanyHealth != "" {
-		t.Errorf("expected empty CompanyHealth for a report predating the field, got %q", apps[1].CompanyHealth)
-	}
-}
-
 // writeTracker writes applications.md under data/ and returns the temp root and
 // the tracker path.
 func writeTracker(t *testing.T, body string) (string, string) {

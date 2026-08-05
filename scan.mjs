@@ -46,6 +46,7 @@ import { resolveColumns, parseTrackerRow } from './tracker-parse.mjs';
 import { normalizeCompany } from './tracker-utils.mjs';
 import { normalizeCompanyName } from './invite-match.mjs';
 import { withPipelineLock } from './pipeline-lock.mjs';
+import { withPortalHealthLock } from './portal-health-lock.mjs';
 
 try {
   const { config } = await import('dotenv');
@@ -146,7 +147,8 @@ export function matchedTitleKeywords(title, titleFilter) {
 //     the home region is an option, even though "france" is blocked)
 //   - `block` matches → reject
 //   - `allow` empty → pass (already cleared block)
-//   - `allow` non-empty → must match at least one keyword
+//   - `allow` non-empty → must match at least one keyword, OR the TITLE carries
+//     an explicit remote marker (see titleSignalsRemote below)
 
 // Normalize a keyword list from portals.yml: tolerates a bare string
 // (wrapped to a 1-item array), null/undefined (→ []), and non-string
@@ -225,15 +227,60 @@ export function locationHintFromUrl(url) {
   return segment.replace(/[-_+]+/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-// `url` is optional. Callers that omit it get the original location-only
-// semantics, which is what the existing unit tests exercise.
+// Some ATSs report the hiring office as the location even when the role is
+// remote, and state the remoteness in the TITLE instead: Radancy/TalentBrew
+// tenants return bare "City, State" strings, so
+//   "Program Manager - Remote"  ->  location "Las Vegas, Nevada"
+// An `allow` list written in country/region terms ("united states", "remote")
+// then rejects a genuinely remote US role. Live measurement on
+// careers.unitedhealthgroup.com: 14 PM-family postings, 0 passed `allow`,
+// 5 of them said "Remote" outright in the title.
+//
+// Only an unambiguous work-arrangement marker counts. A bare /remote/ test
+// would admit domain compounds — "Remote Sensing Program Manager" is an
+// on-site GIS role, and Esri (a tracked company) posts exactly those. So
+// "remote" must be followed by end-of-string, a non-letter (")", ",", "-"),
+// or " in …" as in "Remote in MO" — never by another word, which is what makes
+// "remote sensing" / "remote monitoring" compounds.
+export const REMOTE_TITLE_RE = /(?<![a-z])remote(?=$|\s*[^a-z\s]|\s+in\b)/;
+
+// …and a negation before the word has to lose, which the marker regex alone
+// cannot see: in "Non-Remote" / "Not Remote" the delimiter clears the lookbehind
+// and the trailing position clears the lookahead, so an explicitly on-site role
+// would bypass a non-empty `allow` list — the exact opposite of the intent.
+// The separator class must be at least as broad as the marker's own delimiter
+// lookahead, or the guard is trivially sidestepped. An ASCII-only `[\s-]*` let
+// every non-ASCII dash through — "Non–Remote" (en dash), "Non‑Remote"
+// (non-breaking hyphen), em dash, figure dash and minus all still read as
+// remote. `[^a-z]*` matches the marker's breadth: it spans any run of
+// non-letters, so no punctuation variant can slip between the negation and the
+// word.
+// It cannot over-reach, because it never crosses a letter: in "Nonprofit
+// Program Manager - Remote" the run after "non" starts with "profit", so the
+// negation cannot reach "remote". Same for "Not-for-Profit … - Remote",
+// "Nordic … - Remote", "Notary … - Remote".
+// A negation anywhere in the title disqualifies it. Over-rejecting here is the
+// safe direction: this tier only ever *rescues* a posting, so a false negative
+// restores the previous behavior while a false positive admits an on-site role.
+export const REMOTE_NEGATED_RE = /\b(?:non|not|no)[^a-z]*remote/;
+
+/** @param {unknown} title @returns {boolean} whether the title marks the role remote. */
+export function titleSignalsRemote(title) {
+  if (typeof title !== 'string' || title.trim() === '') return false;
+  const lower = title.toLowerCase();
+  if (REMOTE_NEGATED_RE.test(lower)) return false;
+  return REMOTE_TITLE_RE.test(lower);
+}
+
+// `url` and `title` are optional. Callers that omit them get the original
+// location-only semantics, which is what the existing unit tests exercise.
 export function buildLocationFilter(locationFilter) {
   if (!locationFilter) return () => true;
   const alwaysAllow = compileLocationKeywordList(locationFilter.always_allow);
   const allow = compileLocationKeywordList(locationFilter.allow);
   const block = compileLocationKeywordList(locationFilter.block);
 
-  return (location, url) => {
+  return (location, url, title) => {
     const lower = typeof location === 'string' ? location.trim().toLowerCase() : '';
     const hint = locationHintFromUrl(url);
     // Nothing to judge on either field → pass (don't penalize missing data).
@@ -245,7 +292,11 @@ export function buildLocationFilter(locationFilter) {
     if (alwaysAllow.length > 0 && alwaysAllow.some(matches)) return true;
     if (block.length > 0 && block.some(matches)) return false;
     if (allow.length === 0) return true;
-    return allow.some(matches);
+    if (allow.some(matches)) return true;
+    // Last resort only. Deliberately placed AFTER `block` so a remote title can
+    // never rescue a blocked location — "Program Manager - Remote" in Bengaluru
+    // stays rejected. This widens `allow`, never `block`.
+    return titleSignalsRemote(title);
   };
 }
 
@@ -263,6 +314,105 @@ export function buildPostingAgeFilter(maxAgeDays, now = Date.now()) {
     if (typeof postedAt !== 'number' || !Number.isFinite(postedAt)) return true;
     return postedAt >= cutoff;
   };
+}
+
+// ── Posted-date lower bound (shared by the filter and the early-stop) ──
+// --posted-after states a lower bound absolutely; --since <days> states the
+// same thing relatively. They AND together with each other and with
+// max_posting_age_days, so the NEWEST bound is what actually decides
+// eligibility. Both consumers must agree on it: the downstream filter and the
+// provider early-stop hint. Kept as one function so they cannot drift.
+
+/**
+ * Parse and validate `--since <days>` from an argv slice.
+ *
+ * Shared by scan.mjs and scan-ats-full.mjs so ONE flag name cannot mean two
+ * different things. scan-ats-full.mjs used `Number(valueOf('--since')) || 3`,
+ * which silently swallowed every malformed operand: `--since abc` and
+ * `--since 0` both became 3 (the user believes they scanned the window they
+ * typed), `--since -5` produced a cutoff in the FUTURE so nothing was ever
+ * eligible (indistinguishable from "no new postings"), and `--since 1e400`
+ * became Infinity → an -Infinity cutoff, i.e. no window at all (#2498).
+ *
+ * Returns the day count, or null when the flag is absent — the DEFAULT is the
+ * caller's to choose (scan.mjs: no bound; scan-ats-full.mjs: 3 days), only the
+ * validation is shared. `error` is a ready-to-print message; callers print and
+ * exit rather than this throwing, so both CLIs fail the same way.
+ *
+ * @param {string[]} args - argv slice.
+ * @returns {{days: number|null, error: string|null}}
+ */
+export function parseSinceDays(args) {
+  // Every occurrence is collected, not just the first match of either form:
+  // picking one and ignoring the rest means `--since=7 --since` succeeds while
+  // an occurrence with no value goes unread.
+  const occurrences = args.filter((a) => a === '--since' || a.startsWith('--since='));
+  if (occurrences.length > 1) {
+    return { days: null, error: `--since given ${occurrences.length} times; pass it once` };
+  }
+  if (occurrences.length === 0) return { days: null, error: null };
+  const occ = occurrences[0];
+  const next = args[args.indexOf('--since') + 1];
+  const raw = occ.startsWith('--since=')
+    ? occ.slice('--since='.length)
+    : (next != null && !next.startsWith('--') ? next : null);
+  const n = raw == null || raw === '' ? NaN : Number(raw);
+  // Number.isFinite also rejects Infinity and 1e309, which pass a bare `> 0`
+  // test and would yield an -Infinity cutoff (i.e. silently no window).
+  if (!Number.isFinite(n) || n <= 0) {
+    return { days: null, error: `--since expects a positive number of days, got ${raw == null || raw === '' ? '(no value)' : `"${raw}"`}` };
+  }
+  // Finite and positive is not enough: 1e300 days lands outside the ±8.64e15ms
+  // range a Date can represent, so the derived cutoff is an Invalid Date and
+  // toISOString() throws. Reject it here rather than let it surface as an
+  // unhandled "Invalid time value" mid-scan.
+  if (Number.isNaN(new Date(Date.now() - n * 86_400_000).getTime())) {
+    return { days: null, error: `--since ${raw} is too large to express as a date` };
+  }
+  return { days: n, error: null };
+}
+
+/**
+ * Collapse --posted-after and --since into a single absolute lower bound.
+ *
+ * @param {string|null} postedAfter - YYYY-MM-DD from --posted-after, or null.
+ * @param {number|null} sinceDays - Positive day count from --since, or null.
+ * @param {number} [now] - Injectable clock for tests.
+ * @returns {string|null} YYYY-MM-DD, the newer of the two, or null if neither.
+ */
+export function resolveEffectiveAfter(postedAfter, sinceDays, now = Date.now()) {
+  // Truncating --since to a date rather than an exact timestamp makes it
+  // marginally more permissive, which is the safe direction for a bound that
+  // also stops pagination.
+  // Guarded rather than assumed valid: this is exported and unit-tested, so it
+  // must not throw for any input. A day count large enough to push the cutoff
+  // outside the representable Date range yields an Invalid Date, and
+  // toISOString() would throw RangeError on it.
+  const cutoff = Number.isFinite(sinceDays) && sinceDays > 0 ? new Date(now - sinceDays * 86_400_000) : null;
+  const sinceIso = cutoff && !Number.isNaN(cutoff.getTime())
+    ? cutoff.toISOString().slice(0, 10)
+    : null;
+  return [postedAfter, sinceIso].filter(Boolean).reduce((a, b) => (a > b ? a : b), null);
+}
+
+/**
+ * The oldest posting the filters would still accept — the early-stop floor.
+ *
+ * Stopping pagination any NEWER than this would leave eligible postings
+ * unfetched, which is the one thing the optimisation must never do. Returns
+ * null when no CLI window is active: max_posting_age_days constrains the floor
+ * but must not by itself switch early stopping on for configs that never asked.
+ *
+ * @param {string|null} effectiveAfter - Output of resolveEffectiveAfter.
+ * @param {*} maxAgeDays - config.max_posting_age_days (may be absent/invalid).
+ * @param {number} [now] - Injectable clock for tests.
+ * @returns {number|null} Epoch ms floor, or null to disable early stopping.
+ */
+export function resolveEarlyStopMs(effectiveAfter, maxAgeDays, now = Date.now()) {
+  if (!effectiveAfter) return null;
+  const max = Number(maxAgeDays);
+  const ageFloor = Number.isInteger(max) && max > 0 ? now - max * 86_400_000 : -Infinity;
+  return Math.max(Date.parse(`${effectiveAfter}T00:00:00Z`), ageFloor);
 }
 
 // ── Absolute posted-date filter ─────────────────────────────────────
@@ -1418,14 +1568,6 @@ export function formatScanHistoryRow(offer, date, status = 'added') {
     // cols) are unaffected, and older rows that lack it are tolerated by
     // consumers normalizing the raw name on the fly.
     normalizeCompanyName(offer.company || ''),
-    // Work-model tag (remote/hybrid/onsite/mixed) — display-only, never
-    // filters. Trailing cols 13-14: always 'unknown' (never blank) when no
-    // provider set it, so a reader can't mistake an old/untagged row for a
-    // confirmed classification. workModelSource distinguishes a structured
-    // ATS field (Lever, Ashby) from a best-effort text guess (Greenhouse) —
-    // '' when no provider attempted classification for this posting.
-    offer.workModel || 'unknown',
-    offer.workModelSource || '',
   ].map(sanitizeTsvField).join('\t');
 }
 
@@ -1519,16 +1661,15 @@ export function appendToScanHistory(offers, date, status = 'added') {
   // (formatScanHistoryRow) emits, in the same order: the original 7 positional
   // cols (url…location) plus the append-only trailing cols added since —
   // fingerprint (7), posted_at (8), trust_score (9), trust_flags (10),
-  // normalized_company (11), work_model (12), work_model_source (13). Written
-  // ONLY on fresh-file creation; existing files (including headerless legacy
-  // files and older N-col-header files) are never rewritten. All readers
-  // either skip line 0 unconditionally, detect the header by its `url\t`
-  // prefix, or skip non-URL col-0 rows, so widening it stays
+  // normalized_company (11). Written ONLY on fresh-file creation; existing files
+  // (including headerless legacy files and older 7-col-header files) are never
+  // rewritten. All readers either skip line 0 unconditionally, detect the header
+  // by its `url\t` prefix, or skip non-URL col-0 rows, so widening it stays
   // backward-compatible. `status` is parameterized so callers can record verify
   // outcomes (`skipped_expired`, etc.) without the legacy `(expired)` suffix.
   if (!existsSync(SCAN_HISTORY_PATH)) {
     mkdirSync(path.dirname(SCAN_HISTORY_PATH), { recursive: true });
-    writeFileSync(SCAN_HISTORY_PATH, 'url\tfirst_seen\tportal\ttitle\tcompany\tstatus\tlocation\tfingerprint\tposted_at\ttrust_score\ttrust_flags\tnormalized_company\twork_model\twork_model_source\n', 'utf-8');
+    writeFileSync(SCAN_HISTORY_PATH, 'url\tfirst_seen\tportal\ttitle\tcompany\tstatus\tlocation\tfingerprint\tposted_at\ttrust_score\ttrust_flags\tnormalized_company\n', 'utf-8');
   }
 
   const lines = offers.map(o => formatScanHistoryRow(o, date, status)).join('\n') + '\n';
@@ -1595,7 +1736,7 @@ const SCAN_RUNS_PATH = 'data/scan-runs.tsv';
 // 'completed' in v1; a follow-up wires failure-path writes so trend stats can
 // exclude survivorship bias. Consumers MUST parse by header name, never by
 // position — columns may be appended in later versions.
-export const SCAN_RUNS_HEADER = 'timestamp\tstatus\tcompanies\tboards\tfound\tfiltered_title\tfiltered_tier\tfiltered_location\tfiltered_posting_age\tfiltered_salary\tfiltered_content\tfiltered_cooldown\tdupes\tnew_added\terrors\tfiltered_blacklist\tfiltered_visa\tfiltered_posted_date\tfiltered_country_eligibility\tduration_ms\tagent_handoff_companies\tagent_handoff_names\n';
+export const SCAN_RUNS_HEADER = 'timestamp\tstatus\tcompanies\tboards\tfound\tfiltered_title\tfiltered_tier\tfiltered_location\tfiltered_posting_age\tfiltered_salary\tfiltered_content\tfiltered_cooldown\tdupes\tnew_added\terrors\tfiltered_blacklist\tfiltered_visa\tfiltered_posted_date\tfiltered_country_eligibility\n';
 
 export function appendScanRunSummary(c, filePath = SCAN_RUNS_PATH) {
   if (!existsSync(filePath)) writeFileSync(filePath, SCAN_RUNS_HEADER, 'utf-8');
@@ -1613,43 +1754,28 @@ export function appendScanRunSummary(c, filePath = SCAN_RUNS_PATH) {
     c.filteredPostedDate ?? 0,
     // filtered_country_eligibility (#2093) appended at the END for the same reason.
     c.filteredCountryEligibility ?? 0,
-    // duration_ms appended at the END for the same reason. Consumers that
-    // resolve columns by header name (dashboard's ParseScanRuns, stats.mjs)
-    // treat a missing/empty cell as "unknown", not "0ms" — never omit this
-    // field going forward, but its position must stay last if any consumer
-    // still parses positionally against an older file.
-    c.durationMs ?? '',
-    // agent_handoff_companies: companies this run could NOT resolve to a
-    // zero-token provider and printed under "Agent/WebSearch handoff" for a
-    // human/agent Level 1-3 pass — this run's own `companies` counter above
-    // only ever covers the zero-token-resolvable subset, so it can never be
-    // diffed against portal-health.tsv's per-run coverage to recover this
-    // number after the fact. Must be captured at write time.
-    c.agentHandoffCompanies ?? 0,
-    // agent_handoff_names: the actual company names behind the count above,
-    // comma-joined. Previously only the count was persisted and the console
-    // summary truncates at 25 names, so a Level 1-3 worker picking up an old
-    // run had no reliable way to recover the full worklist short of
-    // replicating resolveProvider's classification logic from scratch.
-    // Appended at the END per the header-name contract.
-    (c.agentHandoffNames ?? []).join(','),
   ].join('\t') + '\n';
   appendFileSync(filePath, row, 'utf-8');
 }
 
 // ── Portal health persistence (#1744) ───────────────────────────────
 
-const PORTAL_HEALTH_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'data', 'portal-health.tsv');
+const PORTAL_HEALTH_PATH = 'data/portal-health.tsv';
 export const PORTAL_HEALTH_HEADER = 'timestamp\tcompany\tstatus\n';
 
-export function appendPortalHealth(healthRecords, filePath = PORTAL_HEALTH_PATH) {
-  mkdirSync(path.dirname(filePath), { recursive: true });
-  if (!existsSync(filePath)) writeFileSync(filePath, PORTAL_HEALTH_HEADER, 'utf-8');
-  let lines = '';
-  for (const r of healthRecords) {
-    lines += [r.timestamp, r.company, r.status].join('\t') + '\n';
-  }
-  if (lines) appendFileSync(filePath, lines, 'utf-8');
+// Locked (portal-health-lock.mjs) so a concurrent read-modify-write of this
+// same file — e.g. tests/portal-health-guard.mjs's regression-cleanup path —
+// can never interleave with this append and silently discard one side.
+export async function appendPortalHealth(healthRecords, filePath = PORTAL_HEALTH_PATH) {
+  await withPortalHealthLock(filePath, async () => {
+    mkdirSync(path.dirname(filePath), { recursive: true });
+    if (!existsSync(filePath)) writeFileSync(filePath, PORTAL_HEALTH_HEADER, 'utf-8');
+    let lines = '';
+    for (const r of healthRecords) {
+      lines += [r.timestamp, r.company, r.status].join('\t') + '\n';
+    }
+    if (lines) appendFileSync(filePath, lines, 'utf-8');
+  });
 }
 
 export function loadPortalHealth(filePath = PORTAL_HEALTH_PATH) {
@@ -1825,10 +1951,6 @@ function guardStatusFor(code) {
 }
 
 async function main() {
-  // Wall-clock run duration for scan-runs.tsv's duration_ms column — captured
-  // as the very first statement so it covers the whole run (arg parsing
-  // included), not just the scanning phase.
-  const runStartMs = Date.now();
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
   const verify = args.includes('--verify');
@@ -1869,6 +1991,29 @@ async function main() {
     console.error(`Error: --posted-before expects YYYY-MM-DD, got "${postedBefore}"`);
     process.exit(1);
   }
+
+  // --since <days>: a RELATIVE lower bound on the employer's posting date —
+  // the same thing --posted-after expresses absolutely, and it filters exactly
+  // like it does. Matches scan-ats-full.mjs, which has always treated --since
+  // as a filter; one flag name should not mean two different things.
+  //
+  // It additionally unlocks an optimisation. providers/workday.mjs returns
+  // postings newest-first and can stop paginating once a page is entirely past
+  // the window, but that only fires when ctx carries sinceMs — and scan.mjs
+  // built a bare makeHttpCtx(), so every Workday tenant paginated to its
+  // max_pages cap on every run however stale the deep pages were.
+  //
+  // Flag presence, operand validity, duplicate occurrences and the
+  // out-of-Date-range case are all handled by the SHARED parseSinceDays(), so
+  // scan-ats-full.mjs cannot disagree about what --since means (#2498).
+  const since = parseSinceDays(args);
+  if (since.error) {
+    console.error(`Error: ${since.error}`);
+    process.exit(1);
+  }
+  const sinceDays = since.days;
+
+  const effectiveAfter = resolveEffectiveAfter(postedAfter, sinceDays);
 
   // 1. Load providers
   const providers = await loadProviders(PROVIDERS_DIR);
@@ -1911,7 +2056,11 @@ async function main() {
 
   const locationFilter = buildLocationFilter(config.location_filter);
   const postingAgeFilter = buildPostingAgeFilter(config.max_posting_age_days);
-  const postedDateFilter = buildPostedDateFilter(postedAfter, postedBefore);
+  const postedDateFilter = buildPostedDateFilter(effectiveAfter, postedBefore);
+
+  // Same bound the filter above uses, widened by max_posting_age_days when set.
+  // Derived by the same helper so the hint and the filter cannot disagree.
+  const earlyStopSinceMs = resolveEarlyStopMs(effectiveAfter, config.max_posting_age_days);
   const salaryFilter = buildSalaryFilter(config.salary_filter);
   const trustValidator = buildTrustValidator(config.trust_filter);
   const contentFilter = buildContentFilter(config.content_filter);
@@ -2014,7 +2163,21 @@ async function main() {
 
   const tasks = targets.map(company => async () => {
     let provider = company._provider;
-    const ctx = makeHttpCtx();
+    // includeUndated is deliberately ALWAYS true, independent of the window.
+    // It does not mean "include undated postings in the results" — scan.mjs
+    // already decides that downstream, where buildPostedDateFilter passes a
+    // posting with no parseable date. It means "provider, do not pre-empt that
+    // decision": without it, workday.mjs's no-date-skip returns page 0 only for
+    // any tenant whose CXS payload omits postedOn entirely, silently dropping
+    // postings this scanner would have kept.
+    //
+    // It covers the all-undated tenant, not the mixed one. workday.mjs's
+    // pageIsPastWindow reads dated postings only, so on a page mixing stale
+    // dated postings with undated ones the early-stop still fires and undated
+    // postings on later pages go unfetched. Documented in modes/scan.md; the
+    // fix belongs in workday.mjs, where closing it costs the optimisation on
+    // every tenant that mixes.
+    const ctx = { ...makeHttpCtx(), sinceMs: earlyStopSinceMs, includeUndated: true };
     let sourceName = provider.id === 'local-parser' ? 'local-parser' : `${provider.id}-api`;
     try {
       let jobs;
@@ -2075,7 +2238,9 @@ async function main() {
           totalFilteredTier++;
           continue;
         }
-        if (!locationFilter(job.location, job.url)) {
+        // job.title is passed so a role whose remoteness is stated in the title
+        // ("Program Manager - Remote") isn't rejected for a city-only location.
+        if (!locationFilter(job.location, job.url, job.title)) {
           totalFilteredLocation++;
           continue;
         }
@@ -2245,7 +2410,9 @@ async function main() {
   if (config.max_posting_age_days != null || totalFilteredPostingAge > 0) {
     console.log(`Filtered by age:       ${totalFilteredPostingAge} removed`);
   }
-  if (postedAfter || postedBefore) {
+  // effectiveAfter, not postedAfter — --since sets a lower bound too, and a
+  // scan that filtered by date should say so regardless of which flag set it.
+  if (effectiveAfter || postedBefore) {
     console.log(`Filtered by posted date: ${totalFilteredPostedDate} removed`);
   }
   if (config.salary_filter || totalFilteredSalary > 0) {
@@ -2264,20 +2431,6 @@ async function main() {
     console.log(`Filtered by cooldown:  ${totalFilteredCooldown} removed`);
   }
   console.log(`Duplicates:            ${totalDupes} skipped`);
-  if (newOffers.length > 0) {
-    const workModelCounts = newOffers.reduce((acc, o) => {
-      const key = o.workModel || 'unknown';
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {});
-    const workModelOrder = ['remote', 'hybrid', 'onsite', 'mixed', 'unknown'];
-    const workModelParts = workModelOrder
-      .filter(k => workModelCounts[k] > 0)
-      .map(k => `${k}: ${workModelCounts[k]}`);
-    if (workModelParts.length > 0) {
-      console.log(`Work model:            ${workModelParts.join(', ')}`);
-    }
-  }
   if (blacklist.size > 0) {
     if (includeBlacklisted) {
       console.log(`Blacklisted:           ${annotatedBlacklisted} let through annotated (--include-blacklisted)`);
@@ -2429,7 +2582,7 @@ async function main() {
   // Persist this run's counters (#1604) — guarded exactly like the other
   // writes; a --dry-run must leave no trace.
   if (!dryRun) {
-    appendPortalHealth(healthRecords);
+    await appendPortalHealth(healthRecords);
     appendScanRunSummary({
       timestamp: new Date().toISOString(), status: 'completed',
       companies: summaryCompanies, boards: summaryBoards, found: totalFound,
@@ -2442,9 +2595,6 @@ async function main() {
       filteredVisa: totalFilteredVisa,
       filteredPostedDate: totalFilteredPostedDate,
       filteredCountryEligibility: totalFilteredCountryEligibility,
-      durationMs: Date.now() - runStartMs,
-      agentHandoffCompanies: agentHandoff.length,
-      agentHandoffNames: agentHandoff.map((item) => item.company),
     });
   }
 

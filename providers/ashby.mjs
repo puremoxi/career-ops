@@ -1,8 +1,6 @@
 // @ts-check
 /** @typedef {import('./_types.js').Provider} Provider */
 
-import { normalizeStructuredWorkModel } from './_work-model.mjs';
-
 // Ashby provider — hits the public posting-api endpoint.
 // Auto-detects from careers_url pattern `https://jobs.ashbyhq.com/<slug>`.
 //
@@ -180,11 +178,6 @@ export default {
           location: formatLocation(j),
           salary: parseCompensation(j),
           postedAt: toEpochMs(j.publishedAt),
-          // Ashby's posting-api exposes workplaceType (OnSite/Remote/Hybrid)
-          // as a top-level structured field — read it directly instead of
-          // guessing from location text.
-          workModel: normalizeStructuredWorkModel(j.workplaceType),
-          workModelSource: 'structured',
         }));
       } catch (e) {
         lastErr = e;

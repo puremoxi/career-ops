@@ -27,13 +27,12 @@
  */
 
 import { chromium } from 'playwright';
-import { resolve, dirname, relative, isAbsolute } from 'path';
+import { resolve, dirname, relative, sep, isAbsolute } from 'path';
 import { readFile } from 'fs/promises';
-import { mkdirSync } from 'fs';
+import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { randomUUID } from 'node:crypto';
 import { readStyleTokens, injectThemeStyle } from './theme-style.mjs';
-import { updatePDFManifest, repoRelativeManifestPath } from './pdf-index.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PDF_PAGE_MARGIN = '0.6in';
@@ -155,6 +154,13 @@ const SECTION_ALIASES = new Map([
   ['education', 'education'],
   ['education & certifications', 'education'],
   ['certifications', 'certifications'],
+  ['awards', 'awards'],
+  ['honors', 'awards'],
+  ['honours', 'awards'],
+  ['awards & honors', 'awards'],
+  ['awards and honors', 'awards'],
+  ['honors & awards', 'awards'],
+  ['awards & honours', 'awards'],
   ['skills', 'skills'],
   ['technical skills', 'skills'],
   // Polish — the vocabulary documented in modes/pl/README.md, plus the word-order
@@ -178,6 +184,9 @@ const SECTION_ALIASES = new Map([
   ['certyfikaty', 'certifications'],
   ['certyfikaty i szkolenia', 'certifications'],
   ['szkolenia i certyfikaty', 'certifications'],
+  ['nagrody', 'awards'],
+  ['wyróżnienia', 'awards'],
+  ['nagrody i wyróżnienia', 'awards'],
   ['umiejętności', 'skills'],
   ['umiejętności techniczne', 'skills'],
 ].map(([alias, key]) => [foldDiacritics(alias), key]));
@@ -329,10 +338,19 @@ function countRenderedPdfPages(pdfBuffer) {
   return pageCount;
 }
 
-// repoRelativeManifestPath is imported from pdf-index.mjs above but also
-// re-exported here — test-all.mjs and other callers import it from this
-// module's own namespace.
-export { repoRelativeManifestPath };
+/**
+ * Convert a path to a repo-relative manifest entry, or blank if it is unknown
+ * or outside the career-ops repository.
+ *
+ * @param {string} pathValue - Absolute or cwd-relative filesystem path.
+ * @returns {string} Repo-relative path using forward slashes, or an empty string.
+ */
+export function repoRelativeManifestPath(pathValue) {
+  if (!pathValue) return '';
+  const rel = relative(__dirname, resolve(pathValue));
+  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return '';
+  return rel.split(sep).join('/');
+}
 
 export function injectPrintPageCss(html, format = 'a4') {
   const normalizedFormat = String(format || 'a4').toLowerCase();
@@ -354,6 +372,48 @@ export function injectPrintPageCss(html, format = 'a4') {
   }
 
   return `${pageStyle}\n${html}`;
+}
+
+/**
+ * Record a generated PDF in data/pdf-index.tsv so tools can map a tracker
+ * report number to the exact PDF (and its source HTML for regeneration).
+ *
+ * Columns: report \t pdf \t html \t format \t date — paths relative to the
+ * career-ops root with forward slashes. One row per PDF path; when a report
+ * number is given, older rows for that report are dropped too (regenerated
+ * CVs supersede stale entries). The file is gitignored: it references
+ * gitignored output/ artifacts and is meaningless on another machine.
+ */
+function updatePDFManifest(reportNum, pdfPath, htmlPath, format) {
+  const manifestPath = resolve(__dirname, 'data', 'pdf-index.tsv');
+  const toRel = (p) => relative(__dirname, p).split(sep).join('/');
+  const relPDF = toRel(pdfPath);
+  const relHTML = repoRelativeManifestPath(htmlPath);
+  const date = new Date().toISOString().slice(0, 10);
+  // "008" and "8" are the same report — zero-padded report-link form vs
+  // unpadded tracker-# form. Normalize so replacement rows match.
+  const normKey = (s) => (s || '').trim().replace(/^0+(?=\d)/, '');
+
+  let lines = [];
+  if (existsSync(manifestPath)) {
+    lines = readFileSync(manifestPath, 'utf-8').split('\n').filter((line) => {
+      if (!line.trim() || line.startsWith('#')) return false;
+      const fields = line.split('\t');
+      if (fields[1] === relPDF) return false;
+      if (reportNum && normKey(fields[0]) === normKey(reportNum)) return false;
+      return true;
+    });
+  }
+
+  lines.push([reportNum || '', relPDF, relHTML, format, date].join('\t'));
+
+  mkdirSync(dirname(manifestPath), { recursive: true });
+  writeFileSync(
+    manifestPath,
+    '# report\tpdf\thtml\tformat\tdate — written by generate-pdf.mjs, do not edit\n' +
+      lines.join('\n') + '\n'
+  );
+  return relPDF;
 }
 
 /**

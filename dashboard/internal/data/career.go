@@ -15,20 +15,19 @@ import (
 )
 
 var (
-	reReportLink        = regexp.MustCompile(`\[(\d+)\]\(([^)]+)\)`)
-	reScoreValue        = regexp.MustCompile(`(\d+\.?\d*)/5`)
-	reArchetype         = regexp.MustCompile(`(?i)\*\*(?:Arquetipo|Archetype)(?:\s+(?:detectado|detected))?\*\*\s*\|\s*(.+)`)
-	reTlDr              = regexp.MustCompile(`(?i)\*\*TL;DR\*\*\s*\|\s*(.+)`)
-	reTlDrColon         = regexp.MustCompile(`(?i)\*\*TL;DR:\*\*\s*(.+)`)
-	reRemote            = regexp.MustCompile(`(?i)\*\*Remote\*\*\s*\|\s*(.+)`)
-	reComp              = regexp.MustCompile(`(?i)\*\*Comp\*\*\s*\|\s*(.+)`)
-	reArchetypeColon    = regexp.MustCompile(`(?i)\*\*(?:Arquetipo|Archetype):\*\*\s*(.+)`)
-	reArchetypeYAML     = regexp.MustCompile(`(?m)^archetype:\s*"?([^"\n]+)"?\s*$`)
-	reCompanyHealthYAML = regexp.MustCompile(`(?m)^company_health:\s*"?([^"\n]+)"?\s*$`)
-	reReportURL         = regexp.MustCompile(`(?m)^\*\*URL:\*\*\s*(https?://\S+)`)
-	reBatchID           = regexp.MustCompile(`(?m)^\*\*Batch ID:\*\*\s*(\d+)`)
-	reDiscardReasons    = regexp.MustCompile(`(?s)discard_reasons:\s*\n((?:\s*-\s*.+?\n)+)`)
-	reDiscardItem       = regexp.MustCompile(`\s*-\s*([^\n]+)`)
+	reReportLink     = regexp.MustCompile(`\[(\d+)\]\(([^)]+)\)`)
+	reScoreValue     = regexp.MustCompile(`(\d+\.?\d*)/5`)
+	reArchetype      = regexp.MustCompile(`(?i)\*\*(?:Arquetipo|Archetype)(?:\s+(?:detectado|detected))?\*\*\s*\|\s*(.+)`)
+	reTlDr           = regexp.MustCompile(`(?i)\*\*TL;DR\*\*\s*\|\s*(.+)`)
+	reTlDrColon      = regexp.MustCompile(`(?i)\*\*TL;DR:\*\*\s*(.+)`)
+	reRemote         = regexp.MustCompile(`(?i)\*\*Remote\*\*\s*\|\s*(.+)`)
+	reComp           = regexp.MustCompile(`(?i)\*\*Comp\*\*\s*\|\s*(.+)`)
+	reArchetypeColon = regexp.MustCompile(`(?i)\*\*(?:Arquetipo|Archetype):\*\*\s*(.+)`)
+	reArchetypeYAML  = regexp.MustCompile(`(?m)^archetype:\s*"?([^"\n]+)"?\s*$`)
+	reReportURL      = regexp.MustCompile(`(?m)^\*\*URL:\*\*\s*(https?://\S+)`)
+	reBatchID        = regexp.MustCompile(`(?m)^\*\*Batch ID:\*\*\s*(\d+)`)
+	reDiscardReasons = regexp.MustCompile(`(?s)discard_reasons:\s*\n((?:\s*-\s*.+?\n)+)`)
+	reDiscardItem    = regexp.MustCompile(`\s*-\s*([^\n]+)`)
 )
 
 // resolveReportPath converts a report link from the tracker into a path
@@ -67,7 +66,6 @@ func ParseApplications(careerOpsPath string) []model.CareerApplication {
 	lines := strings.Split(string(content), "\n")
 	apps := make([]model.CareerApplication, 0)
 	num := 0
-	salaryObs := loadSalaryObservations(careerOpsPath)
 
 	// Map columns by header name rather than fixed position, so a customized or
 	// reordered tracker (e.g. an inserted Location column) does not desync the
@@ -133,21 +131,6 @@ func ParseApplications(careerOpsPath string) []model.CareerApplication {
 		// Lift location / work mode / pay / last-contact out of the notes free-text
 		deriveNoteFields(&app)
 
-		// A structured salary-observations.tsv entry (JD-advertised, or a
-		// confirmed actual figure) always wins over the Notes-regex guess —
-		// it exists precisely for cases where the Notes summary sentence
-		// describes comp qualitatively ("transparent CAD total comp")
-		// without restating the number in $-parseable form.
-		if obs, ok := salaryObs[app.Number]; ok {
-			app.PayRange = obs.String()
-			app.PayMax = payCeiling(app.PayRange)
-			if obs.kind == "actual" {
-				app.PaySource = "confirmed"
-			} else {
-				app.PaySource = "POSTED"
-			}
-		}
-
 		apps = append(apps, app)
 	}
 
@@ -169,18 +152,10 @@ func ParseApplications(careerOpsPath string) []model.CareerApplication {
 		if err != nil {
 			continue
 		}
-		fullText := string(reportContent)
-		header := fullText
+		header := string(reportContent)
 		// Only scan the header (first 1000 bytes) for speed
 		if len(header) > 1000 {
 			header = header[:1000]
-		}
-
-		// Machine Summary's company_health can fall past the 1000-byte header
-		// cutoff, so match against the full report text (already in memory,
-		// no extra I/O) rather than the truncated header.
-		if m := reCompanyHealthYAML.FindStringSubmatch(fullText); m != nil {
-			apps[i].CompanyHealth = strings.TrimSpace(m[1])
 		}
 
 		// Strategy 1: **URL:** in report

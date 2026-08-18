@@ -151,6 +151,19 @@ func ParseApplications(careerOpsPath string) []model.CareerApplication {
 		apps = append(apps, app)
 	}
 
+	// Set StatusDate from the status-log ledger: the date this row entered
+	// its CURRENT status, so the Date column reflects "applied on X" for an
+	// Applied row rather than always the original evaluation date. No
+	// matching logged transition (e.g. a row still in "Evaluated", which
+	// never gets a set-status.mjs transition) leaves StatusDate empty, and
+	// the UI falls back to the tracker's own Date column for those rows.
+	statusDates := loadStatusDates(careerOpsPath)
+	for i := range apps {
+		if byStatus, ok := statusDates[apps[i].Number]; ok {
+			apps[i].StatusDate = byStatus[NormalizeStatus(apps[i].Status)]
+		}
+	}
+
 	// Enrich with job URLs using 5-tier strategy:
 	// 1. **URL:** field in report header (newest reports)
 	// 2. **Batch ID:** in report -> batch-input.tsv URL lookup

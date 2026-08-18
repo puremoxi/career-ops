@@ -1187,7 +1187,11 @@ func (m *PipelineModel) applyFilterAndSort() {
 func (m PipelineModel) sortLess() func(a, b model.CareerApplication) bool {
 	switch m.sortMode {
 	case sortDate:
-		return func(a, b model.CareerApplication) bool { return a.Date > b.Date }
+		// Mirrors dateCellText's StatusDate-over-Date preference (without its
+		// "—" placeholder, which would otherwise sort empty dates to the top
+		// instead of the bottom), so sort order matches what the Date column
+		// actually shows.
+		return func(a, b model.CareerApplication) bool { return dateSortKey(a) > dateSortKey(b) }
 	case sortCompany:
 		return func(a, b model.CareerApplication) bool {
 			return strings.ToLower(a.Company) < strings.ToLower(b.Company)
@@ -1658,9 +1662,25 @@ func numCellText(app model.CareerApplication) string {
 	return "#—"
 }
 
+// dateCellText prefers StatusDate — the date this row entered its current
+// status (see loadStatusDates) — so an Applied row shows its applied date and
+// an Evaluated row shows its evaluation date, matching whichever
+// status-grouped section it's displayed under. Falls back to the tracker's
+// own Date column when no logged transition matches (e.g. still Evaluated).
 func dateCellText(app model.CareerApplication) string {
-	if app.Date == "" {
-		return "—"
+	if key := dateSortKey(app); key != "" {
+		return key
+	}
+	return "—"
+}
+
+// dateSortKey is the raw (placeholder-free) value dateCellText displays:
+// StatusDate when a logged transition matches the current status, else the
+// tracker's own Date, else "". Shared with sortDate so sort order matches
+// the displayed column exactly, including empty dates sinking to the bottom.
+func dateSortKey(app model.CareerApplication) string {
+	if app.StatusDate != "" {
+		return app.StatusDate
 	}
 	return app.Date
 }
@@ -1907,7 +1927,7 @@ func (m PipelineModel) renderAppLine(app model.CareerApplication, selected bool)
 	if cw.last > 0 {
 		lastText := lastCellText(app)
 		lastStyle := lipgloss.NewStyle().Foreground(m.theme.Subtext).Width(cw.last)
-		if app.LastContact != "" && app.LastContact != app.Date {
+		if app.LastContact != "" && app.LastContact != dateSortKey(app) {
 			lastStyle = lastStyle.Foreground(m.theme.Text)
 		}
 		segments = append(segments, lastStyle.Render(truncateRunes(lastText, cw.last)))

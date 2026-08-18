@@ -319,7 +319,7 @@ func (m ViewerModel) renderAll() []string {
 				codeLines = append(codeLines, m.lines[i])
 				i++
 			}
-			codeStyle := lipgloss.NewStyle().Background(m.theme.Surface).Foreground(m.theme.Text)
+			codeStyle := lipgloss.NewStyle().Foreground(m.theme.Text)
 			w := m.width - 6
 			if w < 10 {
 				w = 10

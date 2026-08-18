@@ -60,6 +60,40 @@ type Catalog struct {
 	WeeklyTitle     string
 	ActiveInfo      string
 
+	// Stats screen
+	StatsTitle             string
+	StatsSummary           string
+	StatsStrategicInsights string
+	FitQualityDistribution string
+	SeniorityMix           string
+	QualityBreakdown       string
+	MeetQualityBar         string
+	SalaryBandDist         string
+	ArchetypeTitle         string
+	WorkModeTitle          string
+	LocationTitle          string
+	PayTitle               string
+	ColArchetype           string
+	ColCount               string
+	ColAvgScore            string
+	PayCount               string
+	PayAvg                 string
+	PayMedian              string
+	PayMax                 string
+	PaySourceSplit         string
+	InsightVolumeFit       string
+	InsightVolumePrimary   string
+	InsightWorkMode        string
+	InsightPayBenchmark    string
+
+	// Seniority levels
+	SeniorityExecutive      string
+	SeniorityStaffPrincipal string
+	SeniorityLeadManager    string
+	SenioritySenior         string
+	SeniorityMidLevel       string
+	SeniorityJuniorEntry    string
+
 	// Scan effectiveness screen
 	ScanStatsTitle             string
 	ScanStatsSummary           string
@@ -271,6 +305,31 @@ func (c *Catalog) FormatTimeAgo(dateStr string) string {
 	}
 }
 
+// PieChartSectionTitle formats a section title with the standard pie chart icon.
+func PieChartSectionTitle(title string) string {
+	return "🎯 " + title
+}
+
+// SeniorityLabel returns the localized display label for a seniority category.
+func (c *Catalog) SeniorityLabel(s string) string {
+	switch s {
+	case "Executive":
+		return c.SeniorityExecutive
+	case "Staff / Principal":
+		return c.SeniorityStaffPrincipal
+	case "Lead / Manager":
+		return c.SeniorityLeadManager
+	case "Senior":
+		return c.SenioritySenior
+	case "Mid-Level":
+		return c.SeniorityMidLevel
+	case "Junior / Entry":
+		return c.SeniorityJuniorEntry
+	default:
+		return s
+	}
+}
+
 // En is the static English translation catalog.
 var En = Catalog{
 	// Screen banners & general
@@ -322,6 +381,40 @@ var En = Catalog{
 	RatesTitle:      "Conversion Rates",
 	WeeklyTitle:     "Weekly Activity",
 	ActiveInfo:      "%d active applications | %d total offers",
+
+	// Stats screen
+	StatsTitle:             "SEARCH STATS",
+	StatsSummary:           "%d evaluated | %d archetypes",
+	StatsStrategicInsights: "STRATEGIC INSIGHTS",
+	FitQualityDistribution: "Fit Quality Distribution",
+	SeniorityMix:           "Seniority Mix",
+	QualityBreakdown:       "Quality Breakdown:",
+	MeetQualityBar:         "✓ %.0f%% meet ≥4.0 bar",
+	SalaryBandDist:         "Salary Band Distribution:",
+	ArchetypeTitle:         "By Archetype",
+	WorkModeTitle:          "By Work Mode",
+	LocationTitle:          "By Location",
+	PayTitle:               "Pay Range (posted top, $)",
+	ColArchetype:           "ARCHETYPE",
+	ColCount:               "COUNT",
+	ColAvgScore:            "AVG FIT",
+	PayCount:               "Data points: ",
+	PayAvg:                 "Avg: ",
+	PayMedian:              "Median: ",
+	PayMax:                 "Max: ",
+	PaySourceSplit:         "%d posted, %d estimated",
+	InsightVolumeFit:       "Primary volume in %s (%d roles, %.0f%%) · Highest fit in %s (%.1f/5 avg fit)",
+	InsightVolumePrimary:   "Primary archetype is %s (%d roles, %.0f%% of evaluated pipeline)",
+	InsightWorkMode:        "Workplace distribution: %.0f%% of roles operate as %s",
+	InsightPayBenchmark:    "Compensation benchmark: Median top pay is $%.0fK (peak $%.0fK) across %d data points",
+
+	// Seniority levels
+	SeniorityExecutive:      "Executive",
+	SeniorityStaffPrincipal: "Staff / Principal",
+	SeniorityLeadManager:    "Lead / Manager",
+	SenioritySenior:         "Senior",
+	SeniorityMidLevel:       "Mid-Level",
+	SeniorityJuniorEntry:    "Junior / Entry",
 
 	// Scan effectiveness screen
 	ScanStatsTitle:             "SCAN EFFECTIVENESS",
@@ -498,6 +591,40 @@ var Tr = Catalog{
 	WeeklyTitle:     "Haftalık Aktivite",
 	ActiveInfo:      "%d aktif başvuru | %d toplam teklif",
 
+	// Stats screen
+	StatsTitle:             "TAKİP İSTATİSTİKLERİ",
+	StatsSummary:           "%d değerlendirildi | %d arketip",
+	StatsStrategicInsights: "STRATEJİK İÇGÖRÜLER",
+	FitQualityDistribution: "Uyum Kalitesi Dağılımı",
+	SeniorityMix:           "Kıdem Dağılımı",
+	QualityBreakdown:       "Kalite Dağılımı:",
+	MeetQualityBar:         "✓ %%%.0f ≥4.0 barajını geçiyor",
+	SalaryBandDist:         "Maaş Aralığı Dağılımı:",
+	ArchetypeTitle:         "Arketipe Göre",
+	WorkModeTitle:          "Çalışma Şekline Göre",
+	LocationTitle:          "Konuma Göre",
+	PayTitle:               "Ücret Aralığı (ilan üst sınırı, $)",
+	ColArchetype:           "ARKETİP",
+	ColCount:               "SAYI",
+	ColAvgScore:            "ORT. UYUM",
+	PayCount:               "Veri noktası: ",
+	PayAvg:                 "Ort: ",
+	PayMedian:              "Medyan: ",
+	PayMax:                 "Maks: ",
+	PaySourceSplit:         "%d ilan, %d tahmini",
+	InsightVolumeFit:       "En yüksek hacim %s alanında (%d ilan, %%%.0f) · En yüksek uyum %s alanında (ort. %.1f/5)",
+	InsightVolumePrimary:   "Ana arketip %s (%d ilan, değerlendirilen hattın %%%.0f'i)",
+	InsightWorkMode:        "Çalışma yeri dağılımı: ilanların %%%.0f'i %s olarak çalışıyor",
+	InsightPayBenchmark:    "Ücret karşılaştırması: medyan üst maaş $%.0fK (en yüksek $%.0fK) — %d veri noktası",
+
+	// Seniority levels
+	SeniorityExecutive:      "Yönetici",
+	SeniorityStaffPrincipal: "Kıdemli Uzman / Lider",
+	SeniorityLeadManager:    "Takım Lideri / Müdür",
+	SenioritySenior:         "Kıdemli",
+	SeniorityMidLevel:       "Orta Seviye",
+	SeniorityJuniorEntry:    "Başlangıç / Giriş",
+
 	// Scan effectiveness screen
 	ScanStatsTitle:             "TARAMA ETKİNLİĞİ",
 	ScanStatsSummary:           "%d tarama | %d eklendi | %d/%d şirket eşleşti",
@@ -672,6 +799,40 @@ var Es = Catalog{
 	RatesTitle:      "Tasas de conversión",
 	WeeklyTitle:     "Actividad semanal",
 	ActiveInfo:      "%d solicitudes activas | %d ofertas totales",
+
+	// Stats screen
+	StatsTitle:             "ESTADÍSTICAS DE BÚSQUEDA",
+	StatsSummary:           "%d evaluadas | %d arquetipos",
+	StatsStrategicInsights: "INSIGHTS ESTRATÉGICOS",
+	FitQualityDistribution: "Distribución de Calidad de Ajuste",
+	SeniorityMix:           "Mix de Antigüedad",
+	QualityBreakdown:       "Desglose de Calidad:",
+	MeetQualityBar:         "✓ %.0f%% supera el umbral de ≥4.0",
+	SalaryBandDist:         "Distribución por Rangos Salariales:",
+	ArchetypeTitle:         "Por Arquetipo",
+	WorkModeTitle:          "Por Modalidad",
+	LocationTitle:          "Por Ubicación",
+	PayTitle:               "Rango salarial (tope publicado, $)",
+	ColArchetype:           "ARQUETIPO",
+	ColCount:               "CANTIDAD",
+	ColAvgScore:            "AJUSTE PROM",
+	PayCount:               "Puntos de datos: ",
+	PayAvg:                 "Prom: ",
+	PayMedian:              "Mediana: ",
+	PayMax:                 "Máx: ",
+	PaySourceSplit:         "%d publicados, %d estimados",
+	InsightVolumeFit:       "Mayor volumen en %s (%d puestos, %.0f%%) · Mayor ajuste en %s (ajuste prom. %.1f/5)",
+	InsightVolumePrimary:   "Arquetipo principal: %s (%d puestos, %.0f%% del flujo evaluado)",
+	InsightWorkMode:        "Distribución laboral: el %.0f%% de los puestos opera como %s",
+	InsightPayBenchmark:    "Referencia salarial: La mediana de salario máximo es $%.0fK (pico $%.0fK) en %d puntos de datos",
+
+	// Seniority levels
+	SeniorityExecutive:      "Ejecutivo",
+	SeniorityStaffPrincipal: "Staff / Principal",
+	SeniorityLeadManager:    "Líder / Manager",
+	SenioritySenior:         "Senior",
+	SeniorityMidLevel:       "Nivel Medio",
+	SeniorityJuniorEntry:    "Junior / Inicial",
 
 	// Scan effectiveness screen
 	ScanStatsTitle:             "EFECTIVIDAD DE ESCANEO",

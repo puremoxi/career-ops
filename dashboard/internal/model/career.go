@@ -14,25 +14,14 @@ type CareerApplication struct {
 	ReportNumber string
 	Notes        string
 	JobURL       string // URL of the original job posting
-	// CompanyHealth is the Machine Summary `company_health` value ("Strong" |
-	// "Stable" | "Caution" | "Weak" | "Insufficient Data"), eagerly parsed
-	// from the report during ParseApplications (report file is already read
-	// there for JobURL, so this costs no extra I/O). Empty string means the
-	// report has no company_health field (old report) or there is no report.
-	CompanyHealth string
 	// Derived from Notes free-text (see data.deriveNoteFields)
 	Location    string  // "City, ST" when a US city+state appears in the notes
 	WorkMode    string  // "Remote" | "Hybrid" | "Full" (onsite), "" when unknown
-	PayRange    string  // best-known pay range: data/salary-observations.tsv when present, else the first $-range found in the notes, e.g. "$140-210K"
+	PayRange    string  // first $-range found in the notes, e.g. "$140-210K"
 	PayMax      float64 // top of PayRange in dollars (sort key), 0 when unknown
-	PaySource   string  // "confirmed" (actual, from salary-observations.tsv) | "POSTED" (advertised, from salary-observations.tsv or Notes) | "est" (Notes estimate) | "" unknown
+	PaySource   string  // "POSTED" when the JD listed it, "est" for estimates, "" unknown
+	PostedOn    string  // YYYY-MM-DD from a "posted <date>" note — when the req went live, "" unknown
 	LastContact string  // max YYYY-MM-DD found in notes (falls back to applied date)
-	// StatusDate is the date the row entered its CURRENT status, read from
-	// data/status-log.tsv (the set-status.mjs transition ledger). Empty when
-	// no logged transition matches the current status — the Date column
-	// falls back to the tracker's own Date (the evaluation date) in that
-	// case, which is already correct for rows still sitting in "Evaluated".
-	StatusDate string
 	// Enrichment (lazy loaded from report)
 	Archetype    string
 	TlDr         string

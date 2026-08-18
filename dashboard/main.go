@@ -23,23 +23,20 @@ const (
 	viewPipeline viewState = iota
 	viewReport
 	viewProgress
-	viewScanStats
+	viewStats
 )
 
 type appModel struct {
-	pipeline           screens.PipelineModel
-	viewer             screens.ViewerModel
-	progress           screens.ProgressModel
-	scanStats          screens.ScanStatsModel
-	state              viewState
-	careerOpsPath      string
-	theme              theme.Theme
-	progressMetrics    model.ProgressMetrics
-	scanRunMetrics     data.ScanRunMetrics
-	scanHistoryMetrics data.ScanHistoryMetrics
-	portalHealth       data.PortalHealthMetrics
-	portalsConfig      data.PortalsConfigSummary
-	queryProfiles      map[string]string
+	pipeline        screens.PipelineModel
+	viewer          screens.ViewerModel
+	progress        screens.ProgressModel
+	stats           screens.StatsModel
+	state           viewState
+	careerOpsPath   string
+	theme           theme.Theme
+	progressMetrics model.ProgressMetrics
+	statsMetrics    model.StatsMetrics
+	evaluatedCount  int
 }
 
 func (m *appModel) reloadPipelineData() {
@@ -47,14 +44,36 @@ func (m *appModel) reloadPipelineData() {
 	metrics := data.ComputeMetrics(apps)
 	m.progressMetrics = data.ComputeProgressMetrics(apps)
 	m.pipeline = m.pipeline.WithReloadedData(apps, metrics)
-	// Scan data lives outside applications.md (scan-runs.tsv, scan-history.tsv)
-	// and can change between dashboard sessions via `node scan.mjs` runs, so
-	// refresh it alongside application data on every `r` reload.
-	m.scanRunMetrics = data.ParseScanRuns(m.careerOpsPath)
-	m.scanHistoryMetrics = data.ParseScanHistory(m.careerOpsPath)
-	m.portalHealth = data.ParsePortalHealth(m.careerOpsPath)
-	m.portalsConfig = data.ParsePortalsConfig(m.careerOpsPath)
-	m.queryProfiles = data.ParseQueryProfiles(m.careerOpsPath)
+	enrichArchetypes(m.careerOpsPath, apps, &m.pipeline)
+	m.statsMetrics = data.ComputeStatsMetrics(apps)
+	// Count only apps with a score so the header reflects evaluated offers.
+	m.evaluatedCount = 0
+	for _, a := range apps {
+		if a.Score > 0 {
+			m.evaluatedCount++
+		}
+	}
+}
+
+// enrichArchetypes lazy-loads each app's report-derived archetype (used by
+// the stats screen's breakdown table) and, as a side effect, primes the
+// pipeline model's report preview cache the same way main()'s startup loop
+// does — so a manual refresh doesn't blank out report previews.
+func enrichArchetypes(careerOpsPath string, apps []model.CareerApplication, pm *screens.PipelineModel) {
+	for i := range apps {
+		if apps[i].ReportPath == "" {
+			continue
+		}
+		archetype, tldr, remote, comp := data.LoadReportSummary(careerOpsPath, apps[i].ReportPath)
+		// Only overwrite when the report actually supplies a non-empty archetype;
+		// preserve any value already derived from the tracker.
+		if archetype != "" {
+			apps[i].Archetype = archetype
+		}
+		if archetype != "" || tldr != "" || remote != "" || comp != "" {
+			pm.EnrichReport(apps[i].ReportPath, archetype, tldr, remote, comp)
+		}
+	}
 }
 
 func (m appModel) Init() tea.Cmd {
@@ -82,8 +101,8 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.state == viewProgress {
 			m.progress.Resize(msg.Width, msg.Height)
 		}
-		if m.state == viewScanStats {
-			m.scanStats.Resize(msg.Width, msg.Height)
+		if m.state == viewStats {
+			m.stats.Resize(msg.Width, msg.Height)
 		}
 		pm, cmd := m.pipeline.Update(msg)
 		m.pipeline = pm
@@ -174,7 +193,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case screens.PipelineOpenProgressMsg:
 		m.progress = screens.NewProgressModel(
-			theme.NewTheme("catppuccin-mocha"),
+			m.theme,
 			m.progressMetrics,
 			m.pipeline.Width(), m.pipeline.Height(),
 		)
@@ -185,20 +204,17 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state = viewPipeline
 		return m, nil
 
-	case screens.PipelineOpenScanStatsMsg:
-		m.scanStats = screens.NewScanStatsModel(
-			theme.NewTheme("catppuccin-mocha"),
-			m.scanRunMetrics,
-			m.scanHistoryMetrics,
-			m.portalHealth,
-			m.portalsConfig,
-			m.queryProfiles,
+	case screens.PipelineOpenStatsMsg:
+		m.stats = screens.NewStatsModel(
+			m.theme,
+			m.statsMetrics,
+			m.evaluatedCount,
 			m.pipeline.Width(), m.pipeline.Height(),
 		)
-		m.state = viewScanStats
+		m.state = viewStats
 		return m, nil
 
-	case screens.ScanStatsClosedMsg:
+	case screens.StatsClosedMsg:
 		m.state = viewPipeline
 		return m, nil
 
@@ -222,9 +238,9 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.progress = pg
 			return m, cmd
 		}
-		if m.state == viewScanStats {
-			ss, cmd := m.scanStats.Update(msg)
-			m.scanStats = ss
+		if m.state == viewStats {
+			sm, cmd := m.stats.Update(msg)
+			m.stats = sm
 			return m, cmd
 		}
 		pm, cmd := m.pipeline.Update(msg)
@@ -290,8 +306,8 @@ func (m appModel) View() string {
 		return m.viewer.View()
 	case viewProgress:
 		return m.progress.View()
-	case viewScanStats:
-		return m.scanStats.View()
+	case viewStats:
+		return m.stats.View()
 	default:
 		return m.pipeline.View()
 	}
@@ -325,26 +341,24 @@ func main() {
 	t := theme.NewTheme("auto")
 	pm := screens.NewPipelineModel(t, apps, metrics, careerOpsPath, 120, 40)
 
-	for _, app := range apps {
-		if app.ReportPath == "" {
-			continue
-		}
-		archetype, tldr, remote, comp := data.LoadReportSummary(careerOpsPath, app.ReportPath)
-		if archetype != "" || tldr != "" || remote != "" || comp != "" {
-			pm.EnrichReport(app.ReportPath, archetype, tldr, remote, comp)
-		}
-	}
+	enrichArchetypes(careerOpsPath, apps, &pm)
+	statsMetrics := data.ComputeStatsMetrics(apps)
 
 	m := appModel{
-		pipeline:           pm,
-		careerOpsPath:      careerOpsPath,
-		theme:              t,
-		progressMetrics:    progressMetrics,
-		scanRunMetrics:     data.ParseScanRuns(careerOpsPath),
-		scanHistoryMetrics: data.ParseScanHistory(careerOpsPath),
-		portalHealth:       data.ParsePortalHealth(careerOpsPath),
-		portalsConfig:      data.ParsePortalsConfig(careerOpsPath),
-		queryProfiles:      data.ParseQueryProfiles(careerOpsPath),
+		pipeline:        pm,
+		careerOpsPath:   careerOpsPath,
+		theme:           t,
+		progressMetrics: progressMetrics,
+		statsMetrics:    statsMetrics,
+		evaluatedCount:  func() int {
+			n := 0
+			for _, a := range apps {
+				if a.Score > 0 {
+					n++
+				}
+			}
+			return n
+		}(),
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())

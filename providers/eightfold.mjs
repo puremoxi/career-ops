@@ -1,145 +1,262 @@
 // @ts-check
 /** @typedef {import('./_types.js').Provider} Provider */
 
-import { classifyWorkModelFromLocation } from './_work-model.mjs';
+// Eightfold AI provider — hits the public per-tenant Talent Acquisition JSON
+// API (zero-auth GET, no token or cookie). Eightfold hosts branded career
+// sites for large enterprises (Bayer, Vodafone, PepsiCo, Autodesk, Micron, …).
+//
+// Host pattern (per-tenant):
+//   <tenant>.eightfold.ai        e.g. bayer.eightfold.ai
+//
+// Career page URL:
+//   https://<tenant>.eightfold.ai/careers[?domain=<domain>]
+// Many tenants also front the same board on a branded CNAME
+// (careers.<company>.com). That host is deliberately NOT accepted: the API is
+// host-pinned to *.eightfold.ai, so an entry must point at the canonical
+// tenant host. Set `careers_url` (or `api`) to the eightfold.ai form.
+//
+// JSON API (GET, zero-auth):
+//   https://<tenant>.eightfold.ai/api/apply/v2/jobs
+//   ?domain=<domain>&start=<n>&num=<n>
+//   `domain` is OPTIONAL — the server infers it from the tenant host and
+//   echoes it back as `domain` in the response, so omitting it still returns
+//   that tenant's board. It is still sent when the entry supplies one,
+//   because multi-brand tenants scope their board by it.
+//   Response: { positions: [...], count: <total>, domain: "<domain>" }.
+//   Per position: id, name, posting_name, location, locations[], department,
+//   business_unit, t_create/t_update (epoch SECONDS), canonicalPositionUrl,
+//   display_job_id.
+//
+// PAGE SIZE IS SERVER-CAPPED AT 10. Requesting num=25/50/100/200 all return
+// exactly 10 rows (measured against a 616-posting tenant). So a large board
+// costs count/10 requests; the page cap below is what keeps that bounded, and
+// `max_pages` on the entry raises it for a genuinely huge tenant.
+//
+// Known limitation: several tenants front the API with a WAF that 403s
+// datacenter/cloud egress IPs. That is an environment/IP issue, not a provider
+// bug — the same request succeeds from a residential IP. A browser-like
+// User-Agent is sent to reduce (not eliminate) the friction.
 
-// Eightfold AI provider — powers the "PCS"/"PCSX" career sites of many large
-// enterprises (Netflix, Nvidia, Cisco, Booking, Salesforce, and others), either
-// on a *.eightfold.ai subdomain or proxied behind a branded custom domain
-// (Netflix: explore.jobs.netflix.net). Two zero-auth JSON search endpoints
-// exist per tenant — a given tenant supports one or the other, not always both:
-//
-//   GET {origin}/api/pcsx/search?domain={company}&query=&location=&start=N&sort_by=timestamp
-//   GET {origin}/api/apply/v2/jobs?domain={company}&query=&location=&start=N&sort_by=timestamp
-//
-// Both return 10 positions per page (server-fixed) plus a total count, but in
-// different envelopes: PCSX wraps the payload in {"data": {...}}, SmartApply
-// (`/api/apply/v2/jobs`) returns "positions"/"count" at the top level alongside
-// a large block of unrelated page-config JSON. `start` is a 0-based offset,
-// stepping by 10.
-//
-// A tenant that doesn't have PCSX enabled 403s with a body of
-// `{"message": "PCSX is not enabled for this user."}` — that specific
-// status+body pair is the ONLY condition that triggers a fallback from PCSX to
-// SmartApply, decided once from the first page before pagination starts (never
-// per-page). Any other error just propagates, same as every other provider —
-// scan.mjs's per-portal try/catch means a thrown error skips this one company
-// without aborting the run.
-//
-// Verified live against Netflix's tenant (2026-07-14): PCSX 403s with the
-// message above; SmartApply returns 200 with real postings on both
-// netflix.eightfold.ai and the branded explore.jobs.netflix.net host directly.
-//
-// `domain` (Eightfold's internal per-tenant company-domain key, e.g.
-// "netflix.com") cannot be reliably derived from the tenant subdomain or
-// careers_url, so it must be configured explicitly via an `eightfold:` block:
-//   eightfold:
-//     domain: netflix.com
-//
-// Detection: branded hosts carry no "eightfold" token, so detect() only
-// auto-claims literal *.eightfold.ai URLs; branded tenants are wired with an
-// explicit `provider: eightfold` (which bypasses detect()) — same convention
-// as providers/phenom.mjs for branded Phenom tenants.
-//
-// t_create/t_update are epoch SECONDS (confirmed live), unlike most providers'
-// millisecond timestamps — parseEightfoldTimestamp() scales accordingly.
-//
-// No per-job description request is made (Eightfold's `job_description` field
-// on the list payload is empty; hydrating it requires an extra per-job
-// `/api/pcsx/position_details` call) — consistent with this scanner's
-// zero-token design, which already omits description for every provider
-// except Lever (whose list payload includes it for free).
+import { BROWSER_LIKE_USER_AGENT, fetchJsonWithRetry } from './_http.mjs';
 
-const PAGE_SIZE = 10; // Eightfold's server-fixed page size (confirmed live).
-const DEFAULT_MAX_PAGES = 150; // 150*10 = 1500 postings; override via entry.max_pages
-const HARD_MAX_PAGES = 300;
-const MAX_JOBS = 1500;
-// Polite pacing between page requests. Eightfold's documented (unofficial)
-// rate limit is ~100 requests/minute; 200ms keeps a single tenant's pagination
-// well under that even for a large board.
-const PAGE_DELAY_MS = 200;
+const EIGHTFOLD_HOST_RE = /^[a-z0-9-]+\.eightfold\.ai$/i;
 
-/** @param {import('./_types.js').PortalEntry} entry */
-export function resolveConfig(entry) {
-  const raw = entry.api || entry.careers_url || '';
-  let u;
+// The API refuses to return more than 10 rows per request regardless of `num`.
+const PAGE_SIZE = 10;
+// Safety cap on pagination, applied regardless of what `count` claims, so a
+// misbehaving or compromised API cannot drive an unbounded request loop.
+// 200 pages = 2,000 postings; override with `max_pages` on the portal entry.
+const DEFAULT_MAX_PAGES = 200;
+// Hard ceiling even for an explicit override (10,000 postings).
+const MAX_PAGES_CAP = 1000;
+// Same-host pacing between pages inside one tenant's own pagination loop.
+// Eightfold's edge rate-limits bursts, and a 616-job board is 62 requests.
+const INTER_PAGE_DELAY_MS = 150;
+
+const RETRY_POLICY = { retries: 3, baseDelayMs: 500, maxDelayMs: 8_000 };
+
+/**
+ * SSRF guard — every request URL passes through here before it is fetched.
+ *
+ * @param {string} url
+ * @returns {string} the same URL, when it is a trusted Eightfold endpoint.
+ */
+function assertEightfoldUrl(url) {
+  let parsed;
   try {
-    u = new URL(raw);
+    parsed = new URL(url);
   } catch {
-    return null;
+    throw new Error(`eightfold: invalid URL: ${url}`);
   }
-  if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
-  const block = entry.eightfold && typeof entry.eightfold === 'object' ? entry.eightfold : {};
-  const domain = typeof block.domain === 'string' ? block.domain.trim() : '';
-  if (!domain) return null;
-  const origin = u.origin;
-  return {
-    origin,
-    domain,
-    pcsxApi: `${origin}/api/pcsx/search`,
-    smartApplyApi: `${origin}/api/apply/v2/jobs`,
-  };
+  if (parsed.protocol !== 'https:') throw new Error(`eightfold: URL must use HTTPS: ${url}`);
+  if (!EIGHTFOLD_HOST_RE.test(parsed.hostname)) {
+    throw new Error(`eightfold: untrusted hostname "${parsed.hostname}" — must match *.eightfold.ai`);
+  }
+  return url;
 }
 
-/** Resolve the page cap: positive integer `max_pages`, else default. */
-function resolveMaxPages(entry) {
-  const v = entry?.max_pages;
-  if (Number.isInteger(v) && v > 0) return Math.min(v, HARD_MAX_PAGES);
-  return DEFAULT_MAX_PAGES;
+/** @param {number} ms @param {any} ctx */
+function sleep(ms, ctx) {
+  if (typeof ctx?.sleep === 'function') return ctx.sleep(ms);
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Eightfold timestamps observed live (t_create/t_update) are epoch seconds.
-// Guard against a future deployment already sending epoch ms (13 digits) by
-// only scaling values that look like seconds.
-/** @param {unknown} raw @returns {number | undefined} */
-export function parseEightfoldTimestamp(raw) {
-  const n = Number(raw);
+/**
+ * Eightfold reports timestamps as epoch SECONDS (`t_create`, `t_update`), not
+ * the ISO strings every other provider gets. Converted here; anything
+ * non-finite or non-positive is dropped rather than guessed at.
+ *
+ * @param {unknown} value
+ * @returns {number|undefined} epoch ms, or undefined.
+ */
+function epochSecondsToMs(value) {
+  const n = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(n) || n <= 0) return undefined;
-  return n < 10_000_000_000 ? n * 1000 : n;
+  return Math.round(n * 1000);
 }
 
 /**
- * True only for the exact "PCSX not enabled for this tenant" signal — the
- * one condition that should switch the whole fetch over to SmartApply.
- * @param {any} err
+ * Resolve the tenant host from a portal entry. `entry.api` takes precedence
+ * over `entry.careers_url` (mirrors greenhouse/ashby/oraclecloud) so a branded
+ * careers page can stay as careers_url while the tenant host is pinned via
+ * api:. An explicit `entry.domain` overrides any `?domain=` in the URL.
+ *
+ * @param {import('./_types.js').PortalEntry & {domain?: string}} entry
+ * @returns {{host: string, domain: (string|null)}|null}
  */
-export function isPcsxDisabled(err) {
-  return err?.status === 403 && typeof err.body === 'string' && err.body.includes('PCSX is not enabled');
+export function resolveTenant(entry) {
+  for (const raw of [entry?.api, entry?.careers_url]) {
+    if (typeof raw !== 'string' || !raw) continue;
+    let parsed;
+    try {
+      parsed = new URL(raw);
+    } catch {
+      continue;
+    }
+    if (parsed.protocol !== 'https:') continue;
+    if (!EIGHTFOLD_HOST_RE.test(parsed.hostname)) continue;
+
+    const override = typeof entry.domain === 'string' && entry.domain.trim()
+      ? entry.domain.trim()
+      : null;
+    const fromUrl = parsed.searchParams.get('domain');
+    const domain = override || (fromUrl && fromUrl.trim() ? fromUrl.trim() : null);
+
+    return { host: parsed.hostname.toLowerCase(), domain };
+  }
+  return null;
 }
 
 /**
- * Normalize one PCSX/SmartApply response envelope into {total, rows}, where
- * `rows` are the raw position objects (mapping happens in mapPosition so it
- * stays independently testable, mirroring providers/phenom.mjs's split).
- * @param {any} json @param {'pcsx'|'smartapply'} variant
+ * Build the jobs API URL for one page.
+ *
+ * @param {{host: string, domain?: (string|null)}} tenant
+ * @param {number} [start] - Row offset (0-based).
+ * @param {number} [num]   - Requested page size; the server caps it at 10.
+ * @returns {string}
  */
-export function parseSearchResponse(json, variant) {
-  const body = variant === 'pcsx' ? (json?.data ?? {}) : (json ?? {});
-  const total = typeof body.count === 'number' ? body.count : null;
-  const rows = Array.isArray(body.positions) ? body.positions : [];
-  return { total, rows };
+export function buildApiUrl(tenant, start = 0, num = PAGE_SIZE) {
+  const params = new URLSearchParams();
+  if (tenant.domain) params.set('domain', tenant.domain);
+  params.set('start', String(start));
+  params.set('num', String(num));
+  return `https://${tenant.host}/api/apply/v2/jobs?${params.toString()}`;
 }
 
 /**
- * Map one raw Eightfold position object to the normalized row shape.
- * A record without a resolvable id or title is dropped (no stable dedup key
- * / no meaningful listing) — same guard phenom.mjs applies.
- * @param {any} item @param {{origin:string}} cfg
+ * Fallback posting URL for a position with no `canonicalPositionUrl`.
+ *
+ * @param {{host: string, domain?: (string|null)}} tenant
+ * @param {string} pid
+ * @returns {string}
  */
-export function mapPosition(item, cfg) {
-  if (!item || typeof item !== 'object') return null;
-  const id = String(item.display_job_id || item.displayJobId || item.id || item.ats_job_id || item.atsJobId || '');
-  const title = String(item.name || item.posting_name || item.title || '').replace(/\s+/g, ' ').trim();
-  if (!id || !title) return null;
-  const rawUrl = String(item.canonicalPositionUrl || item.canonical_position_url || item.positionUrl || item.position_url || '');
-  const url = rawUrl
-    ? (rawUrl.startsWith('/') ? `${cfg.origin}${rawUrl}` : rawUrl)
-    : `${cfg.origin}/careers/job/${encodeURIComponent(id)}`;
-  const location = String(item.location || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-  const postedAt = parseEightfoldTimestamp(item.t_create ?? item.creationTs ?? item.postedTs ?? item.t_update);
-  const row = { id, title, url, location };
-  if (typeof postedAt === 'number') row.postedAt = postedAt;
-  return row;
+export function buildJobUrl(tenant, pid) {
+  const params = new URLSearchParams();
+  params.set('pid', pid);
+  if (tenant.domain) params.set('domain', tenant.domain);
+  return `https://${tenant.host}/careers?${params.toString()}`;
+}
+
+/**
+ * Assemble a location string. Prefers the flat `location` field, else joins
+ * the `locations[]` array. Deduped, joined with " · " like ashby's
+ * secondaryLocations handling so scan.mjs's location_filter sees every city
+ * a multi-site role is open to.
+ *
+ * @param {any} p
+ * @returns {string}
+ */
+function assembleLocation(p) {
+  const parts = [];
+  if (typeof p.location === 'string' && p.location.trim()) parts.push(p.location.trim());
+  if (Array.isArray(p.locations)) {
+    for (const loc of p.locations) {
+      if (typeof loc === 'string' && loc.trim()) parts.push(loc.trim());
+    }
+  }
+  return [...new Set(parts)].join(' · ');
+}
+
+/**
+ * Pure normalizer for one `/api/apply/v2/jobs` response. Exported for unit
+ * tests. Returns [] for null / {} / non-array / {positions: null}.
+ *
+ * Drop rules (a dropped row is silently omitted, never emitted half-formed):
+ *   - no title (`name`, falling back to `posting_name`)
+ *   - no usable https URL — `canonicalPositionUrl` must parse as https:, and
+ *     when it is absent/unusable there must be an `id` to build the tenant
+ *     fallback URL from. The URL is the dedup key downstream.
+ *
+ * `canonicalPositionUrl` frequently points at a branded host
+ * (talent.bayer.com), not eightfold.ai. That is accepted: these URLs are
+ * display-only — written to pipeline/history, never fetched by the scanner —
+ * exactly as jobvite.mjs treats its applyURLs. Host-pinning applies to
+ * endpoints WE request, not to links we merely record.
+ *
+ * @param {unknown} json
+ * @param {{host: string, domain?: (string|null)}} tenant
+ * @param {string} companyName
+ * @returns {Array<{title: string, url: string, company: string, location: string, postedAt?: number}>}
+ */
+export function parseEightfoldResponse(json, tenant, companyName) {
+  if (!json || typeof json !== 'object') return [];
+  const positions = /** @type {any} */ (json).positions;
+  if (!Array.isArray(positions)) return [];
+
+  const out = [];
+  for (const p of positions) {
+    if (!p || typeof p !== 'object') continue;
+
+    const title = (typeof p.name === 'string' && p.name.trim())
+      ? p.name.trim()
+      : (typeof p.posting_name === 'string' ? p.posting_name.trim() : '');
+    if (!title) continue;
+
+    let url = '';
+    const canonical = typeof p.canonicalPositionUrl === 'string' ? p.canonicalPositionUrl.trim() : '';
+    if (canonical) {
+      try {
+        const parsed = new URL(canonical);
+        if (parsed.protocol === 'https:') url = parsed.href;
+      } catch {
+        // malformed — fall through to the tenant fallback
+      }
+    }
+    if (!url) {
+      const pid = p.id != null && `${p.id}`.trim() ? `${p.id}`.trim() : '';
+      if (pid) url = buildJobUrl(tenant, pid);
+    }
+    if (!url) continue;
+
+    /** @type {{title: string, url: string, company: string, location: string, postedAt?: number}} */
+    const job = {
+      title,
+      url,
+      company: companyName,
+      location: assembleLocation(p),
+    };
+    const postedAt = epochSecondsToMs(p.t_create) ?? epochSecondsToMs(p.t_update);
+    if (postedAt !== undefined) job.postedAt = postedAt;
+
+    out.push(job);
+  }
+  return out;
+}
+
+/**
+ * Resolve the page cap: a positive integer `max_pages` on the entry, capped
+ * at MAX_PAGES_CAP; then narrowed further by ctx.maxPages when the caller is
+ * only probing (verify-portals.mjs's health check passes 1).
+ *
+ * @param {any} entry
+ * @param {any} ctx
+ * @returns {number}
+ */
+function resolveMaxPages(entry, ctx) {
+  const v = entry?.max_pages;
+  const fromEntry = Number.isInteger(v) && v > 0 ? Math.min(v, MAX_PAGES_CAP) : DEFAULT_MAX_PAGES;
+  const hint = Number(ctx?.maxPages);
+  return Number.isFinite(hint) && hint > 0 ? Math.min(fromEntry, Math.floor(hint)) : fromEntry;
 }
 
 /** @type {Provider} */
@@ -147,96 +264,62 @@ export default {
   id: 'eightfold',
 
   detect(entry) {
-    const url = entry.api || entry.careers_url || '';
-    if (typeof url !== 'string') return null;
-    let host;
     try {
-      host = new URL(url).hostname.toLowerCase();
+      const tenant = resolveTenant(entry);
+      return tenant ? { url: buildApiUrl(tenant, 0, PAGE_SIZE) } : null;
     } catch {
       return null;
     }
-    if (host === 'eightfold.ai' || host.endsWith('.eightfold.ai')) return { url };
-    return null;
   },
 
   async fetch(entry, ctx) {
-    const cfg = resolveConfig(entry);
-    if (!cfg) {
-      throw new Error(
-        `eightfold: cannot resolve origin/domain for ${entry.name} — set eightfold: { domain: "<company>.com" } in portals.yml`,
-      );
-    }
+    const tenant = resolveTenant(entry);
+    if (!tenant) throw new Error(`eightfold: cannot derive API URL for ${entry.name}`);
 
-    const wait = (ms) => (ctx.sleep ? ctx.sleep(ms) : new Promise((r) => setTimeout(r, ms)));
-    const maxPages = resolveMaxPages(entry);
+    const maxPages = resolveMaxPages(entry, ctx);
+    const all = [];
+    /** @type {number|null} */
+    let total = null;
 
-    /** @param {'pcsx'|'smartapply'} variant @param {number} start */
-    const fetchPage = async (variant, start) => {
-      const apiUrl = variant === 'pcsx' ? cfg.pcsxApi : cfg.smartApplyApi;
-      const qs = new URLSearchParams({ domain: cfg.domain, query: '', location: '', start: String(start), sort_by: 'timestamp' });
-      const json = await ctx.fetchJson(`${apiUrl}?${qs.toString()}`, {
-        redirect: 'error',
-        headers: { accept: 'application/json, text/plain, */*' },
-      });
-      return parseSearchResponse(json, variant);
-    };
+    for (let page = 0; page < maxPages; page++) {
+      const start = page * PAGE_SIZE;
+      const apiUrl = buildApiUrl(tenant, start, PAGE_SIZE);
+      assertEightfoldUrl(apiUrl); // SSRF guard before every fetch
+      if (page > 0) await sleep(INTER_PAGE_DELAY_MS, ctx);
 
-    // Decide the endpoint once, from the first page, before pagination starts.
-    let variant = 'pcsx';
-    let first;
-    try {
-      first = await fetchPage('pcsx', 0);
-    } catch (err) {
-      if (!isPcsxDisabled(err)) throw err;
-      variant = 'smartapply';
-      first = await fetchPage('smartapply', 0);
-    }
+      const json = /** @type {any} */ (await fetchJsonWithRetry(
+        /** @type {any} */ (ctx),
+        apiUrl,
+        {
+          // redirect:'error' prevents SSRF via a server-side redirect; with
+          // assertEightfoldUrl above it guarantees the final hostname stays
+          // inside *.eightfold.ai.
+          redirect: 'error',
+          headers: { 'User-Agent': BROWSER_LIKE_USER_AGENT, Accept: 'application/json' },
+        },
+        RETRY_POLICY,
+      ));
 
-    const jobs = [];
-    const seen = new Set();
-    const collect = (rows) => {
-      let fresh = 0;
-      for (const item of rows) {
-        const row = mapPosition(item, cfg);
-        if (!row || seen.has(row.id)) continue;
-        seen.add(row.id);
-        fresh++;
-        const job = {
-          title: row.title,
-          url: row.url,
-          company: entry.name,
-          location: row.location,
-          // No structured work-model field on Eightfold's search API — same
-          // best-effort text guess used for Greenhouse, tagged accordingly.
-          workModel: classifyWorkModelFromLocation(row.location),
-          workModelSource: 'inferred',
-        };
-        if (typeof row.postedAt === 'number') job.postedAt = row.postedAt;
-        jobs.push(job);
-        if (jobs.length >= MAX_JOBS) break;
+      all.push(...parseEightfoldResponse(json, tenant, entry.name));
+
+      const positions = Array.isArray(json?.positions) ? json.positions : [];
+      if (total === null && typeof json?.count === 'number' && Number.isFinite(json.count)) {
+        total = json.count;
       }
-      return fresh;
-    };
 
-    let total = first.total;
-    collect(first.rows);
-
-    for (let page = 1; page < maxPages; page++) {
-      if (jobs.length >= MAX_JOBS) break;
-      if (total !== null && page * PAGE_SIZE >= total) break;
-      await wait(PAGE_DELAY_MS);
-      let pageResult;
-      try {
-        pageResult = await fetchPage(variant, page * PAGE_SIZE);
-      } catch {
-        break; // keep jobs collected so far — a transient mid-scan failure shouldn't discard earlier pages
-      }
-      if (total === null) total = pageResult.total;
-      if (pageResult.rows.length === 0) break;
-      const fresh = collect(pageResult.rows);
-      if (fresh === 0) break; // server ignored `start` (or we've looped)
+      // Stop conditions, in the order they can be trusted:
+      //   - an empty or short page is the end of the board;
+      //   - once we have paged past `count` there is nothing left to ask for.
+      // `count` alone is not enough: it is the pre-filter total on some
+      // tenants, so a short page has to win.
+      if (positions.length === 0 || positions.length < PAGE_SIZE) break;
+      if (total !== null && start + PAGE_SIZE >= total) break;
     }
 
-    return jobs;
+    if (total !== null && all.length < total && maxPages * PAGE_SIZE < total) {
+      console.error(`⚠️  eightfold: ${entry.name} truncated at max_pages=${maxPages} (${all.length} of ${total} jobs) — raise max_pages on this entry for more`);
+    }
+
+    return all;
   },
 };

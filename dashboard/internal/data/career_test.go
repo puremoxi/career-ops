@@ -240,48 +240,6 @@ func TestParseApplicationsResolvesTrackerRelativeReportLinks(t *testing.T) {
 	}
 }
 
-func TestParseApplicationsParsesCompanyHealth(t *testing.T) {
-	tempDir := t.TempDir()
-	dataDir := filepath.Join(tempDir, "data")
-	reportsDir := filepath.Join(tempDir, "reports")
-	for _, dir := range []string{dataDir, reportsDir} {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			t.Fatalf("failed to create dir %s: %v", dir, err)
-		}
-	}
-
-	applications := `# Applications Tracker
-
-| # | Date | Company | Role | Score | Status | PDF | Report | Notes |
-|---|------|---------|------|-------|--------|-----|--------|-------|
-| 1 | 2026-06-03 | Weak Co | Engineer | 3.0/5 | Evaluated | ❌ | [1](../reports/001-weak-2026-06-03.md) | has company_health |
-| 2 | 2026-06-03 | Old Co | Engineer | 3.0/5 | Evaluated | ❌ | [2](../reports/002-old-2026-06-03.md) | pre-dates the field |
-`
-	if err := os.WriteFile(filepath.Join(dataDir, "applications.md"), []byte(applications), 0o644); err != nil {
-		t.Fatalf("failed to write applications tracker: %v", err)
-	}
-
-	reportWithHealth := "# Evaluation\n\n## Machine Summary\n\n```yaml\ncompany: \"Weak Co\"\ncompany_health: \"Weak\"\ncompany_health_score: 2\n```\n"
-	reportWithoutHealth := "# Evaluation\n\n## Machine Summary\n\n```yaml\ncompany: \"Old Co\"\n```\n"
-	if err := os.WriteFile(filepath.Join(reportsDir, "001-weak-2026-06-03.md"), []byte(reportWithHealth), 0o644); err != nil {
-		t.Fatalf("failed to write report: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(reportsDir, "002-old-2026-06-03.md"), []byte(reportWithoutHealth), 0o644); err != nil {
-		t.Fatalf("failed to write report: %v", err)
-	}
-
-	apps := ParseApplications(tempDir)
-	if len(apps) != 2 {
-		t.Fatalf("expected 2 parsed applications, got %d", len(apps))
-	}
-	if apps[0].CompanyHealth != "Weak" {
-		t.Errorf("expected CompanyHealth %q, got %q", "Weak", apps[0].CompanyHealth)
-	}
-	if apps[1].CompanyHealth != "" {
-		t.Errorf("expected empty CompanyHealth for a report predating the field, got %q", apps[1].CompanyHealth)
-	}
-}
-
 // writeTracker writes applications.md under data/ and returns the temp root and
 // the tracker path.
 func writeTracker(t *testing.T, body string) (string, string) {
@@ -579,51 +537,5 @@ func TestUpdateApplicationStatusRefusesUnrecognizableCell(t *testing.T) {
 	out, _ := os.ReadFile(path)
 	if !strings.Contains(string(out), "| ??? |") {
 		t.Errorf("file was modified despite refusal, now:\n%s", string(out))
-	}
-}
-
-func TestParseApplicationsSetsStatusDateFromStatusLog(t *testing.T) {
-	tempDir := t.TempDir()
-	dataDir := filepath.Join(tempDir, "data")
-	if err := os.MkdirAll(dataDir, 0o755); err != nil {
-		t.Fatalf("failed to create data dir: %v", err)
-	}
-
-	applications := `# Applications Tracker
-
-| # | Date | Company | Role | Score | Status | PDF | Report | Notes |
-|---|------|---------|------|-------|--------|-----|--------|-------|
-| 25 | 2026-07-13 | Logitech | Global Head of Creative & Design Operations | 4.0/5 | Applied | ✅ | [25](reports/025.md) | Applied 2026-08-07 |
-| 26 | 2026-07-14 | Acme | Engineer | 3.5/5 | Evaluated | ❌ | [26](reports/026.md) | note |
-`
-	if err := os.WriteFile(filepath.Join(dataDir, "applications.md"), []byte(applications), 0o644); err != nil {
-		t.Fatalf("write tracker: %v", err)
-	}
-
-	// #25 has two logged transitions to Applied — the later one should win.
-	// Its most recent status-log line is well after the tracker's own Date
-	// column (2026-07-13), which is exactly the drift this feature fixes.
-	statusLog := "25\t2026-07-20\tEvaluated\tApplied\tset-status\t\n" +
-		"25\t2026-08-07\tEvaluated\tApplied\tset-status\t\n"
-	if err := os.WriteFile(filepath.Join(dataDir, "status-log.tsv"), []byte(statusLog), 0o644); err != nil {
-		t.Fatalf("write status log: %v", err)
-	}
-
-	apps := ParseApplications(tempDir)
-	if len(apps) != 2 {
-		t.Fatalf("expected 2 apps, got %d", len(apps))
-	}
-
-	if apps[0].StatusDate != "2026-08-07" {
-		t.Errorf("expected #25 StatusDate to be the latest logged Applied transition (2026-08-07), got %q", apps[0].StatusDate)
-	}
-	if apps[0].Date != "2026-07-13" {
-		t.Errorf("expected #25's original tracker Date to stay untouched, got %q", apps[0].Date)
-	}
-
-	// #26 has no status-log entry at all — StatusDate must stay empty so the
-	// UI falls back to the tracker's own (evaluation) Date.
-	if apps[1].StatusDate != "" {
-		t.Errorf("expected #26 StatusDate to be empty (no logged transition), got %q", apps[1].StatusDate)
 	}
 }

@@ -16,6 +16,9 @@
  * 11. Via channel consistency (see #1596)
  * 12. No # value reused across 2+ tracker rows (error — see #1704)
  * 13. applications.md <-> active-interviews.md status sync (see #1504)
+ * 14. reports/*.md advertised_comp coverage — flags missing-key (schema
+ *     violation / likely extraction failure) separately from stated-null
+ *     (JD genuinely had no comp figure, not a bug)
  *
  * Run: node career-ops/verify-pipeline.mjs
  */
@@ -28,6 +31,7 @@ import {
   normalizeTextKey, normalizeVia,
 } from './tracker-parse.mjs';
 import { checkTrackerSync } from './tracker-sync-check.mjs';
+import { checkCompCoverage } from './check-comp-coverage.mjs';
 
 const CAREER_OPS = dirname(fileURLToPath(import.meta.url));
 // Support both layouts: data/applications.md (boilerplate) and applications.md (original).
@@ -464,6 +468,24 @@ if (syncResult) {
       ? 'applications.md and active-interviews.md are in sync'
       : 'No active-interviews.md rows to sync-check');
   }
+}
+
+// --- Check 14: reports/*.md advertised_comp coverage ---
+// missing-key (Machine Summary present, advertised_comp key absent) is a
+// schema violation — the field is mandatory per modes/oferta.md, and its
+// absence is indistinguishable from a silent extraction failure unless
+// flagged. stated-null (advertised_comp explicitly null) means the JD really
+// had no comp figure — informational only, never a warning.
+const compReports = reportFiles.map(name => ({ name, content: readFileSync(join(REPORTS_DIR, name), 'utf-8') }))
+  .map(({ name, content }) => ({ file: name, content }));
+const compResult = checkCompCoverage(compReports);
+const compMissing = compResult.findings.filter(f => f.category === 'missing-key');
+for (const f of compMissing) {
+  warn(`Comp coverage: ${f.file} — advertised_comp key missing from Machine Summary (likely extraction failure, run node check-comp-coverage.mjs for details)`);
+}
+if (compMissing.length === 0) {
+  const nullCount = compResult.counts['stated-null'];
+  ok(`Comp coverage: advertised_comp present on all ${compResult.totalReports} reports (${nullCount} explicitly null — JD had no comp figure)`);
 }
 
 // --- Summary ---

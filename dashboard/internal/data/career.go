@@ -601,6 +601,12 @@ func LoadReportSummary(careerOpsPath, reportPath string) (archetype, tldr, remot
 	} else if m := reCompYAML.FindStringSubmatch(text); m != nil {
 		comp = strings.TrimSpace(m[1])
 	}
+	// advertised_comp: null means the JD stated no comp figure (see
+	// check-comp-coverage.mjs's stated-null category) — show that explicitly
+	// rather than the literal YAML token "null".
+	if strings.EqualFold(comp, "null") {
+		comp = "Not in JD"
+	}
 
 	// Truncate long fields
 	if len(tldr) > 120 {

@@ -132,7 +132,18 @@ function runDashboardBuildAndTest() {
   return true;
 }
 
+function runPersonalBackup() {
+  console.log('Backing up personal data (cv.md, profile, portals.yml, data/, reports/, ...)...');
+  const res = spawnSync(process.execPath, ['backup-personal.mjs', '--quiet'], { cwd: ROOT, stdio: 'inherit' });
+  if (res.status !== 0) {
+    console.error('\nPersonal-data backup failed — aborting update rather than risk an unrecoverable overwrite.');
+    console.error('Run `node backup-personal.mjs` directly to see the error, fix it, then retry.');
+    process.exit(1);
+  }
+}
+
 function main() {
+  runPersonalBackup();
   assertCleanWorkingTree();
 
   const baseCommit = findLastAutoUpdateCommit();
